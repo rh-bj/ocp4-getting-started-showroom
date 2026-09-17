@@ -1,6 +1,6 @@
 :tmp-service-exposed: {service-exposed}
 
-이 실습 환경의 터미널은 클러스터와 같은 네트워크 안에 있으므로, Service 타입과 상관없이 항상 할당되는 내부 주소인 ``ClusterIP``로 바로 접근할 수 있습니다. (Service를 `LoadBalancer` 타입으로 노출한 경우에도, 이 환경에는 실제 클라우드 로드밸런서가 연결되어 있지 않아 ``EXTERNAL-IP``는 계속 ``<pending>``으로 남을 수 있습니다. 그래도 문제없습니다 — 아래처럼 ``ClusterIP``를 사용하면 됩니다.)
+이 실습 환경의 터미널은 클러스터와 같은 네트워크 안에 있으므로, Service 타입과 상관없이 항상 할당되는 내부 주소인 ``ClusterIP``로 바로 접근할 수 있습니다. 
 
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
@@ -16,3 +16,11 @@ Service에 curl 요청을 보냅니다:
 ----
 curl $IP:$PORT
 ----
+
+[.console-output]
+[source,bash,subs="+macros,+attributes"]
+----
+Supersonic Subatomic Java with Quarkus myapp-b484fbf6-25kcz:1
+----
+
+IMPORTANT: curl 명령어를 수행하여 app이 hosting하고 있는 문구를 확인합니다.

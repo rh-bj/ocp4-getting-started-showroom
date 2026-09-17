@@ -8,9 +8,9 @@ NOTE: 이 장은 이전 장에서 만든 Deployment를 이어서 사용합니다
 올바른 네임스페이스에 있는지 확인합니다:
 
 :section-k8s: services
-:set-namespace: {user}-myspace
+:set-namespace: myspace
 
-include::partial$set-context.adoc[]
+include::partial$new-terminal.adoc[]
 
 Service를 만들기 전에, 먼저 이전 장에서 만든 Deployment → ReplicaSet → Pod가 여전히 살아 있는지 차례로 확인해 둡시다. Service는 이 Pod들의 레이블(`app=quarkus-demo`)을 기준으로 대상을 찾으므로, Pod가 실제로 그 레이블을 달고 실행 중이어야 합니다.
 

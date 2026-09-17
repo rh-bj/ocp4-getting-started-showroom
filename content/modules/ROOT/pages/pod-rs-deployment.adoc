@@ -64,7 +64,7 @@ NAME           READY   STATUS    RESTARTS   AGE
 quarkus-demo   1/1     Running   0          18s
 ----
 
-Pod 안의 애플리케이션을 확인합니다:
+[ctrl+c]를 입력하여 watch 명령을 취소한 후, Pod 안의 애플리케이션을 확인합니다:
 
 [#verify-pod]
 [.console-input]
@@ -73,8 +73,35 @@ Pod 안의 애플리케이션을 확인합니다:
 oc exec -it quarkus-demo -- /bin/sh
 ----
 
-다음 명령을 실행합니다.
-컨테이너 인스턴스 안에 있기 때문에 호스트 이름이 ``localhost``인 것에 주목하세요.
+``oc exec``는 실행 중인 Pod의 컨테이너 안에서 명령어를 실행할 때 사용하는 명령입니다. 이 명령을 부분별로 설명하면 다음과 같습니다.
+
+[source,text]
+----
+oc exec
+│
+├─ -i
+│  └─ 표준 입력(stdin)을 계속 열어둠
+│     → 키보드로 명령을 입력할 수 있음
+│
+├─ -t
+│  └─ 터미널(TTY)을 할당
+│     → 일반 터미널처럼 대화형으로 사용할 수 있음
+│
+├─ quarkus-demo
+│  └─ 명령을 실행할 Pod 이름
+│
+├─ --
+│  └─ 이후부터는 컨테이너 안에서 실행할 명령
+│
+└─ /bin/sh
+   └─ 컨테이너 안에서 Shell 실행
+----
+
+위 명령어를 통해, 실행 중인 컨테이너 안에서 /bin/sh라는 새로운 프로세스를 실행하고, 그 Shell과 터미널을 연결한 상태입니다. 
+
+이제 우리는 컨테이너 내부에서 명령을 실행할 수 있습니다. 
+이 컨테이너에서는 Quarkus 애플리케이션이 8080 포트로 실행되고 있습니다.
+따라서 컨테이너 내부에서 자기 자신에게 HTTP 요청을 보내보겠습니다.
 
 [#curl-inside-pod]
 [.console-input]
@@ -87,6 +114,14 @@ curl localhost:8080
 [source,bash]
 ----
 Supersonic Subatomic Java with Quarkus quarkus-demo:1
+----
+
+이제 pod에서 빠져 나오세요.
+
+[#curl-inside-pod]
+[.console-input]
+[source,bash]
+----
 exit
 ----
 
@@ -103,7 +138,7 @@ oc delete pod quarkus-demo
 [.console-input]
 [source,bash]
 ----
-oc get pods -w
+oc get pods
 ----
 
 [.console-output]
@@ -116,6 +151,8 @@ No resources found in myspace namespace.
 ----
 
 네이키드 Pod는 영원히 사라집니다. 아무도 이 Pod를 다시 만들어 주지 않기 때문입니다. 애플리케이션이 크래시하거나 노드에 장애가 생겼을 때도 마찬가지로 아무 일도 일어나지 않습니다 — 이것이 바로 Pod를 그대로 배포하지 않는 이유입니다.
+
+NOTE: `watch`명령어는 [ctrl+c]를 입력하여 빠져 나옵니다.
 
 == ReplicaSet
 
@@ -153,7 +190,7 @@ EOF
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc get pods -w --show-labels
+oc get pods --show-labels
 ----
 
 [.console-output]
@@ -246,10 +283,18 @@ oc get pod rs-quarkus-demo-mlnng -o jsonpath='{.metadata.ownerReferences[]}'
 [.console-input]
 [source,bash]
 ----
-oc delete pod rs-quarkus-demo-mlnng
+oc delete pod rs-quarkus-demo-랜덤문자
 ----
 
+IMPORTANT: 명령어의 pod name(rs-quarkus-demo-랜덤문자 부분)은 실제 조회된 pod의 이름 중 하나로 변경해야 합니다. 
+
 그러면 이를 대체할 새 pod가 생겨납니다. 이것이 바로 네이키드 Pod에는 없었던 __자가 치유(self-healing)__ 능력입니다:
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+oc get pods 
+----
 
 [.console-output]
 [source,bash]
@@ -302,6 +347,8 @@ spec:
 EOF
 ----
 
+라벨을 포함한 pod 리스트를 조회합니다.
+
 [#pod-show-labels-dep]
 [.console-input]
 [source,bash]
@@ -315,21 +362,10 @@ oc get pods --show-labels
 NAME                                       READY   STATUS    RESTARTS   AGE   LABELS
 quarkus-demo-deployment-5979886fb7-c888m   1/1     Running   0          17s   app=quarkus-demo,env=dev,pod-template-hash=5979886fb7
 quarkus-demo-deployment-5979886fb7-gdtnz   1/1     Running   0          17s   app=quarkus-demo,env=dev,pod-template-hash=5979886fb7
-quarkus-demo-deployment-5979886fb7-grf59   1/1     Running   0          17s   app=quarkus-demo,env=dev,pod-template-hash=5979886f
+quarkus-demo-deployment-5979886fb7-grf59   1/1     Running   0          17s   app=quarkus-demo,env=dev,pod-template-hash=5979886fb7
 ----
 
-[#exec-inside-pod-labels]
-[.console-input]
-[source,bash]
-----
-oc exec -it quarkus-demo-deployment-5979886fb7-c888m -- curl localhost:8080
-----
-
-[.console-output]
-[source,bash]
-----
-Supersonic Subatomic Java with Quarkus quarkus-demo-deployment-5979886fb7-c888m:1
-----
+여기까지 Pod, ReplicaSet, Deployment에 대해서 알아보았습니다.
 
 다음 섹션에서는 ``Service``라는 개념을 배웁니다.
 이는 쿠버네티스 생태계에서 중요한 요소입니다.
