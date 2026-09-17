@@ -1,0 +1,312 @@
+= ConfigMap
+
+ConfigMap은 애플리케이션의 설정을 외부화할 수 있게 해주는 쿠버네티스 리소스입니다.
+
+**__앱의 설정이란 배포 환경(스테이징, 프로덕션, 개발자 환경 등)에 따라 달라질 가능성이 있는 모든 것을 말합니다.__**
+
+https://12factor.net/config[12 Factor Apps]
+
+== 환경 변수
+
+MyRESTController.java에는 환경을 참조하는 작은 코드 조각이 포함되어 있습니다.
+
+[source,java]
+----
+   @RequestMapping("/configure")
+   public String configure() {
+        String databaseConn = environment.getProperty("DBCONN","Default");
+        String msgBroker = environment.getProperty("MSGBROKER","Default");
+        String hello = environment.getProperty("GREETING","Default");
+        String love = environment.getProperty("LOVE","Default");
+        return "Configuration: \n"
+            + "databaseConn=" + databaseConn + "\n"
+            + "msgBroker=" + msgBroker + "\n"
+            + "hello=" + hello + "\n"
+            + "love=" + love + "\n";
+   }
+----
+
+환경 변수는 Deployment 수준에서 조작할 수 있습니다. 하지만 이 방식에는 한계가 있습니다 — 설정값이 Deployment 정의 안에 그대로 박혀 있어서 여러 Deployment가 같은 설정을 공유하기 어렵고, 값이 바뀔 때마다 Deployment의 Pod 템플릿이 바뀌므로(롤링 업데이트 장에서 봤던 것과 같은 방식으로) Pod가 통째로 다시 배포됩니다. 이 한계를 먼저 직접 겪어 본 다음, 이를 해결하는 ConfigMap으로 넘어가 보겠습니다.
+
+``myboot``를 배포합니다:
+
+[#deploy-myboot-configmaps]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl apply -f apps/kubefiles/myboot-deployment.yml
+----
+
+`myboot` Service를 배포합니다:
+
+[#deploy-myboot-service-configmaps]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl apply -f apps/kubefiles/myboot-service.yml
+----
+
+그리고 pod의 상태를 지켜봅니다:
+
+:section-k8s: configmap
+include::partial$watching-pods.adoc[]
+
+애플리케이션에 설정 정보를 요청합니다:
+
+:section-k8s: configmaps
+:service-exposed: myboot
+include::partial$env-curl.adoc[]
+
+[#get-config-configmaps]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+curl $IP:$PORT/configure
+----
+
+[.console-output]
+[source,bash]
+----
+Configuration for : myboot-66d7d57687-jsbz7
+databaseConn=Default
+msgBroker=Default
+greeting=Default
+love=Default
+----
+
+== 환경 변수 설정하기
+
+[#set-env-vars]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl set env deployment/myboot GREETING="namaste" \
+  LOVE="Aloha" \
+  DBCONN="jdbc:sqlserver://45.91.12.123:1443;user=MyUserName;password=*****;"
+----
+
+방금 실행한 명령은 Deployment의 Pod 템플릿에 환경 변수를 추가한 것과 같은 효과를 냅니다. 템플릿이 바뀌었으므로, 예상대로 기존 Pod는 종료되고 새 설정을 가진 Pod가 새로 태어나는 것을 지켜봅니다:
+
+[.console-output]
+[source,bash]
+----
+NAME                      READY   STATUS        RESTARTS   AGE
+myboot-66d7d57687-jsbz7   1/1     Terminating   0          5m
+myboot-785ff6bddc-ghwpc   1/1     Running       0          13s
+----
+
+[#get-config2-configmaps]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+curl $IP:$PORT/configure
+----
+
+[.console-output]
+[source,bash]
+----
+Configuration for : myboot-5fd9dd9c59-58xbh
+databaseConn=jdbc:sqlserver://45.91.12.123:1443;user=MyUserName;password=*****;
+msgBroker=Default
+greeting=namaste
+love=Aloha
+----
+
+deployment를 describe합니다:
+
+:section-k8s: configmaps
+:describe-deployment-name: myboot
+
+include::partial$describe-deployment.adoc[]
+
+[.console-output]
+[source,bash]
+----
+...
+  Containers:
+   myboot:
+    Image:      quay.io/burrsutter/myboot:v1
+    Port:       8080/TCP
+    Host Port:  0/TCP
+    Environment:
+      GREETING:  namaste
+      LOVE:      Aloha
+      DBCONN:    jdbc:sqlserver://45.91.12.123:1443;user=MyUserName;password=*****;
+    Mounts:      <none>
+  Volumes:       <none>
+...  
+----
+
+환경 변수를 제거합니다:
+
+[#remove-env-vars-configmaps]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl set env deployment/myboot GREETING- \
+  LOVE- \
+  DBCONN-
+----
+
+그리고 제거되었는지 확인합니다:
+
+[#get-config3-configmaps]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+curl $IP:$PORT/configure
+----
+
+[.console-output]
+[source,bash]
+----
+Configuration for : myboot-66d7d57687-xkgw6
+databaseConn=Default
+msgBroker=Default
+greeting=Default
+love=Default
+----
+
+==  ConfigMap 생성하기
+
+이번에는 설정값을 Deployment 밖으로 완전히 꺼내 봅시다. `--from-env-file` 옵션을 사용하면 `key=value` 형식의 properties 파일 전체를 하나의 ConfigMap으로 만들 수 있습니다. 이렇게 만든 ConfigMap은 여러 Deployment에서 재사용할 수 있고, Deployment의 정의와는 독립적으로 관리할 수 있습니다:
+
+[#create-configmap-configmaps]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl create cm my-config --from-env-file=apps/config/some.properties
+----
+
+[#get-configmap-configmaps]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl get cm
+kubectl get cm my-config
+kubectl get cm my-config -o json
+----
+
+[.console-output]
+[source,bash]
+----
+...
+    "data": {
+        "GREETING": "jambo",
+        "LOVE": "Amour"
+    },
+    "kind": "ConfigMap",
+...    
+----
+
+또는 `ConfigMap` 객체를 describe할 수도 있습니다:
+
+[#describe-configmap-configmaps]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl describe cm my-config
+----
+
+[.console-output]
+[source,bash]
+----
+Name:         my-config
+Namespace:    myspace
+Labels:       <none>
+Annotations:  <none>
+
+Data
+====
+GREETING:
+====
+jambo
+LOVE:
+====
+Amour
+Events:  <none>
+----
+
+.리소스를 확인할 때 `kubectl edit` 사용하기
+****
+큰 파일의 경우 클러스터의 리소스를 확인할 때 ``kubectl edit``을 사용하는 편이 더 편리할 수 있습니다. 여기서는 다음 명령을 실행해서(변경 사항은 저장하지 말고 취소하세요!) config map을 확인할 수 있습니다:
+
+include::partial$tip_vscode_kube_editor.adoc[]
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl edit cm my-config
+----
+****
+
+이제 이 ConfigMap을 환경 변수로 가져오도록 정의된 Deployment를 배포해 봅시다. 이 Deployment 정의 안에는 실제 설정값이 전혀 없고, "``my-config``라는 ConfigMap을 참조하라"는 지시만 들어 있습니다:
+
+[#deploy-myboot-configmap-configmaps]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl apply -f apps/kubefiles/myboot-deployment-configuration.yml
+----
+
+그리고 configure 엔드포인트를 확인합니다:
+
+[#get-config4-configmaps]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+curl $IP:$PORT/configure
+----
+
+[.console-output]
+[source,bash]
+----
+Configuration for : myboot-84bfcff474-x6xnt
+databaseConn=Default
+msgBroker=Default
+greeting=jambo
+love=Amour
+----
+
+여기서 중요한 함정 하나를 짚고 넘어가겠습니다: ConfigMap을 환경 변수로 사용하는 경우, ConfigMap의 내용이 바뀌어도 이미 떠 있는 Pod에는 __자동으로 반영되지 않습니다__. 환경 변수는 컨테이너가 시작되는 시점에 한 번 주입되기 때문입니다. 그래서 새 설정을 적용하려면 ConfigMap을 바꾼 뒤 Pod를 직접 다시 만들어 줘야 합니다(뒤에서 배울 xref:volumes-persistentvolumes.adoc[Volume]으로 마운트하는 방식은 이와 다르게 동작합니다). ``ConfigMap``을 다시 만들어서 다른 properties 파일로 전환하고, Pod를 지워서 새로 뜨게 해봅시다:
+
+[#delete-pod-configmap-configmaps]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl delete cm my-config
+kubectl create cm my-config --from-env-file=apps/config/other.properties
+kubectl delete pod -l app=myboot --wait=false
+----
+
+[#get-config5-configmaps]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+curl $IP:$PORT/configure
+----
+
+[.console-output]
+[source,bash]
+----
+Configuration for : myboot-694954fc6d-nzdvx
+databaseConn=jdbc:sqlserver://123.123.123.123:1443;user=MyUserName;password=*****;
+msgBroker=tcp://localhost:61616?jms.useAsyncSend=true
+hello=Default
+love=Default
+----
+
+ConfigMap을 가지고 즐길 수 있는 방법은 이 밖에도 많습니다. 공식 문서에서는 Deployment 대신 Pod 스펙을 직접 조작하지만 결과는 기본적으로 동일합니다:
+https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap
+
+
+== 정리
+
+[#clean-configmaps]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl delete deployment myboot
+kubectl delete cm my-config
+kubectl delete service myboot
+----

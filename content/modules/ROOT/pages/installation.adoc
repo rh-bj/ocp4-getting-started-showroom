@@ -1,0 +1,56 @@
+= 설치 및 설정
+include::_attributes.adoc[]
+
+[#tutorial-all-local]
+== CLI 도구
+
+include::partial$prerequisites-kubernetes.adoc[]
+
+include::partial$optional-requisites.adoc[]
+|===
+
+[#download-tutorial-sources]
+== 튜토리얼 소스 다운로드하기
+
+환경을 설정하기 전에, 먼저 튜토리얼 소스를 클론하고 `TUTORIAL_HOME` 환경 변수가 튜토리얼의 루트 디렉터리를 가리키도록 설정해 봅시다. 이후 장들에서 실행할 ``kubectl apply -f apps/kubefiles/...``와 같은 명령들은 이 디렉터리를 기준으로 한 상대 경로를 사용하므로, 이 단계를 건너뛰면 파일을 찾지 못하는 오류가 발생합니다:
+
+:tutorial-url: {github-repo}
+:folder: kubernetes-tutorial
+include::https://raw.githubusercontent.com/redhat-developer-demos/rhd-tutorial-common/master/download-sources.adoc[]
+
+[IMPORTANT,subs="attributes+,+macros"]
+====
+
+이 튜토리얼은 OpenShift `{openshift-version}` 환경에서 개발 및 테스트되었습니다.
+====
+
+[#start-kubernetes]
+=== 환경 확인하기
+
+이 튜토리얼에서는 여러분이 로컬에 클러스터나 CLI 도구를 직접 설치하지 않습니다. 대신 여러분에게 이미 배정된 OpenShift 클러스터가 있고, 모든 실습은 OpenShift 웹 콘솔에 각자의 계정으로 로그인한 뒤 콘솔이 제공하는 **웹 터미널**(Web Terminal)에서 진행합니다. 웹 터미널은 브라우저 안에서 바로 열리는 터미널로, `oc`/`kubectl`을 포함해 이 튜토리얼에 필요한 CLI 도구가 이미 설치되어 있고 클러스터에도 자동으로 로그인되어 있습니다.
+
+여러분의 클러스터 접속 정보는 다음과 같습니다:
+
+**사용자 이름:** `{user}` +
+**비밀번호:** `{password}` +
+**웹 콘솔:** {openshift_console_url} +
+**기본 프로젝트:** `{ocp4_starter_project}`
+
+웹 콘솔에 로그인한 뒤 화면 오른쪽 위 kbd:[+] 아이콘(또는 명령줄 아이콘) 메뉴에서 웹 터미널을 열 수 있습니다. 웹 터미널이 정상적으로 열렸다면, 연결이 잘 되어 있는지 다음 명령으로 확인해 봅시다.
+
+[#whoami-check]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+oc whoami
+oc project
+----
+
+``oc whoami``는 현재 로그인되어 있는 사용자를, ``oc project``는 명령을 실행했을 때 기본적으로 리소스가 생성될 네임스페이스(OpenShift에서는 이를 "프로젝트"라고도 부릅니다)를 보여줍니다. 아마 `{ocp4_starter_project}`가 표시될 텐데, 이는 실습을 시작할 수 있도록 여러분만을 위해 미리 만들어 둔 프로젝트입니다.
+
+두 명령 모두 오류 없이 사용자 이름과 프로젝트 이름을 보여준다면, 클러스터에 정상적으로 연결되어 있는 것이므로 다음 장으로 넘어갈 준비가 된 것입니다.
+
+[NOTE]
+====
+이 클러스터는 다른 여러 학생들과 함께 사용하는 __공유__ 클러스터입니다. 앞으로 각 장에서는 `{ocp4_starter_project}` 외에도 실습마다 새로운 네임스페이스를 직접 만들게 되는데, 다른 학생과 이름이 겹치지 않도록 항상 `{user}`(여러분의 사용자 이름)를 접두어로 붙인 이름(예: `{user}-myspace`)을 사용합니다. 안내를 그대로 따라 하면 자동으로 여러분만의 고유한 이름이 만들어지니, `myspace`처럼 이미 다른 사람이 쓰고 있을 수 있는 이름을 직접 만들지 않도록 주의하세요.
+====

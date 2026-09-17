@@ -1,0 +1,142 @@
+= Blue/Green
+
+Blue/Green 배포에 대한 설명과 역사는 https://martinfowler.com/bliki/BlueGreenDeployment.html[여기]에서 확인할 수 있습니다. 핵심 아이디어는 이렇습니다: 기존 버전(Blue)을 내리지 않은 채로 새 버전(Green)을 완전히 별도로 띄워서 충분히 검증한 다음, 트래픽을 한 번에 새 버전으로 __전환__합니다. 문제가 생기면 다시 옛 버전으로 즉시 되돌릴 수 있다는 것이 장점입니다.
+
+xref:service-magic.adoc[Service의 마법] 장에서 확인했듯, 쿠버네티스 Service는 레이블 셀렉터로만 대상을 찾습니다. 이 성질을 이용하면 Blue/Green 전환을 아주 쉽게 구현할 수 있습니다: Blue와 Green 두 Deployment를 서로 다른 레이블로 동시에 띄워 두고, 하나의 Service가 어느 레이블을 가리킬지만 바꿔주면 됩니다.
+
+올바른 네임스페이스에 있는지 확인합니다.
+
+:section-k8s: bluegreen
+:set-namespace: {user}-myspace
+
+include::partial$set-context.adoc[]
+
+다른 것이 배포되어 있지 않은지 확인합니다:
+
+[#no-resources-blue-green]
+[.console-input]
+[source, bash]
+----
+kubectl get all
+----
+
+[.console-output]
+[source,bash]
+----
+No resources found in myspace namespace.
+----
+
+먼저 Blue 역할을 할 V1 버전을 배포합니다. 이 Deployment의 Pod는 `app=myboot` 레이블을 가지고 있습니다:
+
+[#deploy-v1-blue-green]
+[.console-input]
+[source, bash]
+----
+kubectl apply -f apps/kubefiles/myboot-deployment-resources-limits.yml
+----
+
+복제본을 2개로 스케일합니다:
+
+[#scale-v1-blue-green]
+[.console-input]
+[source, bash]
+----
+kubectl scale deployment/myboot --replicas=2
+----
+
+지켜보면서 ``show-labels``를 사용합니다:
+
+[#labels-v1-blue-green]
+[.console-input]
+[source, bash]
+----
+kubectl get pods -w --show-labels
+----
+
+이제 이 V1(Blue)을 가리키는 Service를 배포합니다. 이 Service의 셀렉터는 ``app=myboot``로, 지금은 V1 Pod들만 가리키고 있습니다:
+
+[#deploy-service-blue-green]
+[.console-input]
+[source, bash]
+----
+kubectl apply -f apps/kubefiles/myboot-service.yml
+----
+
+:section-k8s: bluegreen
+:service-exposed: myboot
+include::partial$env-curl.adoc[]
+
+그리고 loop 스크립트를 실행합니다:
+
+include::partial$loop.adoc[]
+
+이제 Green 역할을 할 V2를 __별도의 Deployment__로 배포합니다. 이 Deployment의 Pod들은 ``app=myboot-next``라는 다른 레이블을 갖도록 정의되어 있어서, 아직 ``app=myboot``를 바라보는 기존 Service의 대상에는 포함되지 않습니다. 즉, V1에 실제로 트래픽을 받는 동안에도 V2를 안전하게 미리 띄우고 검증할 수 있습니다:
+
+[#deploy-v2-blue-green]
+[.console-input]
+[source, bash]
+----
+kubectl apply -f apps/kubefiles/myboot-deployment-resources-limits-v2.yml
+----
+
+Service를 거치지 않고 V2 Pod에 직접 ``exec``로 들어가 curl을 실행해서, 전환하기 전에 새 코드가 제대로 동작하는지 미리 검증해 봅시다:
+
+[#exec-v2-blue-green]
+[.console-input]
+[source, bash]
+----
+PODNAME=$(kubectl get pod -l app=myboot-next -o name)
+kubectl exec -it $PODNAME -- curl localhost:8080
+----
+
+[.console-output]
+[source,bash]
+----
+Jambo from Spring Boot! 1 on myboot-next-66b68c6659-ftcjr
+----
+
+검증이 끝났으니 이제 실제 전환을 해봅시다. Service의 ``selector``를 ``app=myboot-next``로 바꾸면, 그 즉시 Endpoints가 V2 Pod들로 교체되어 모든 트래픽이 GREEN(V2)으로 전환됩니다. Deployment도, Pod도 다시 만들 필요 없이 Service의 selector 한 줄만 바뀌는 것에 주목하세요. 터미널 2의 loop 출력을 지켜보면, 이 전환이 얼마나 즉각적인지 확인할 수 있습니다:
+
+[#patch-service-green]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl patch svc/myboot -p '{"spec":{"selector":{"app":"myboot-next"}}}'
+----
+
+[.console-output]
+[source,bash]
+----
+Aloha from Spring Boot! 240 on myboot-d78fb6d58-929wn
+Jambo from Spring Boot! 2 on myboot-next-66b68c6659-ftcjr
+Jambo from Spring Boot! 3 on myboot-next-66b68c6659-ftcjr
+Jambo from Spring Boot! 4 on myboot-next-66b68c6659-ftcjr
+----
+
+프랑스식(green)보다 하와이식(blue)을 더 선호한다고 판단하여 되돌립니다. Blue/Green 배포의 가장 큰 장점이 바로 이것입니다 — V1 Pod들을 지운 적이 없으므로, 셀렉터를 원래대로 되돌리기만 하면 그 즉시 롤백이 끝납니다:
+
+[#patch-service-blue]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl patch svc/myboot -p '{"spec":{"selector":{"app":"myboot"}}}'
+----
+
+[.console-output]
+[source,bash]
+----
+Jambo from Spring Boot! 17 on myboot-next-66b68c6659-ftcjr
+Aloha from Spring Boot! 257 on myboot-d78fb6d58-vqvlb
+Aloha from Spring Boot! 258 on myboot-d78fb6d58-vqvlb
+----
+
+== 정리
+
+[#clean]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl delete service myboot
+kubectl delete deployment myboot
+kubectl delete deployment myboot-next
+----

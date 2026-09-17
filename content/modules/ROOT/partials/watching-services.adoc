@@ -1,0 +1,17 @@
+[#{section-k8s}-kubectl-watch-services]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl get services -w
+----
+
+[.console-output]
+[source,bash,subs="+macros,+attributes"]
+----
+NAME    TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+myapp   LoadBalancer   172.30.103.41   <pending>     8080:31974/TCP   4s
+----
+
+``CLUSTER-IP``는 Service가 생성되는 즉시 할당되며, 이 주소로 클러스터 내부 어디서든 Service에 접근할 수 있습니다. 반면 ``EXTERNAL-IP``는 클러스터 밖에서 접근하기 위한 주소로, 실제 클라우드 로드밸런서와 연동되어야 채워집니다.
+
+NOTE: 이 실습 환경에는 클라우드 로드밸런서가 연결되어 있지 않으므로 ``EXTERNAL-IP``는 계속 ``<pending>``으로 남아 있을 수 있습니다. 걱정하지 마세요 — 우리는 클러스터 내부 네트워크에 있는 터미널을 사용하고 있으므로, 이미 할당된 ``CLUSTER-IP``로 바로 접근하면 됩니다.

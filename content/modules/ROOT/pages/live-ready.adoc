@@ -1,0 +1,516 @@
+= Liveness와 Readiness
+
+쿠버네티스는 컨테이너가 정상인지를 스스로 판단하지 못합니다. 프로세스가 살아 있어도 내부적으로 멈춰 있거나(데드락 등), 아직 요청을 받을 준비가 안 되어 있을 수 있기 때문입니다. 이를 알려주기 위한 것이 __probe__입니다:
+
+* __Liveness Probe__는 "이 컨테이너가 여전히 정상적으로 동작하고 있는가?"를 주기적으로 확인합니다. 실패하면 쿠버네티스는 그 컨테이너를 __재시작__합니다.
+* __Readiness Probe__는 "이 컨테이너가 지금 트래픽을 받을 준비가 되었는가?"를 확인합니다. 실패해도 컨테이너를 재시작하지는 않지만, 그 Pod를 Service의 Endpoints 목록에서 __일시적으로 제외__시켜서 트래픽이 오지 않게 합니다.
+
+이번 장에서는 이 두 Probe를 실제로 실패시켜 보면서 각각 어떤 다른 반응이 일어나는지 직접 확인해 봅니다.
+
+올바른 네임스페이스에 있는지 확인합니다:
+
+:section-k8s: liveready
+:set-namespace: {user}-myspace
+
+include::partial$set-context.adoc[]
+
+다른 것이 배포되어 있지 않은지 확인합니다:
+
+[#no-resources-live-ready]
+[.console-input]
+[source, bash]
+----
+kubectl get all
+----
+
+[.console-output]
+[source.bash]
+----
+No resources found in myspace namespace.
+----
+
+:quick-open-file: myboot-deployment-live-ready.yml
+
+이제 Liveness와 Readiness probe가 설정된 애플리케이션을 배포해 보겠습니다. ``{quick-open-file}``을 살펴보세요.
+
+include::partial$tip_vscode_quick_open.adoc[]
+
+[.console-output]
+[source,yaml]
+.{quick-open-file}
+----
+include::example$myboot-deployment-live-ready.yml[]
+----
+
+이제 다음 명령으로 이 deployment를 적용합니다.
+
+[#create-app-live-ready]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl apply -f apps/kubefiles/myboot-deployment-live-ready.yml
+----
+
+deployment를 describe합니다:
+
+:describe-deployment-name: myboot
+:section-k8s: live-ready
+
+include::partial$describe-deployment.adoc[]
+
+[.console-output]
+[source.bash]
+----
+...
+    Image:      quay.io/rhdevelopers/myboot:v1
+    Port:       8080/TCP
+    Host Port:  0/TCP
+    Limits:
+      cpu:     1
+      memory:  400Mi
+    Requests:
+      cpu:        250m
+      memory:     300Mi
+    Liveness:     http-get http://:8080/ delay=10s timeout=2s period=5s #success=1 #failure=3
+    Readiness:    http-get http://:8080/health delay=10s timeout=1s period=3s #success=1 #failure=3
+...
+----
+
+`delay`(시작 후 첫 검사까지 대기 시간), `period`(검사 주기), `timeout`(응답 대기 시간), `failure`(연속 실패 허용 횟수) 값을 보면, 이 Probe가 얼마나 자주, 얼마나 관대하게 검사하는지 알 수 있습니다. Liveness는 `/`(루트) 경로를, Readiness는 ``/health``라는 별도의 경로를 사용하고 있는 것도 눈여겨보세요 — 두 Probe가 서로 다른 기준으로 애플리케이션을 검사할 수 있다는 뜻입니다.
+
+Service를 배포합니다:
+
+[#deploy-service-live-ready]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl apply -f apps/kubefiles/myboot-service.yml
+----
+
+:section-k8s: liveready
+:service-exposed: myboot
+include::partial$env-curl.adoc[]
+
+그리고 loop 스크립트를 실행합니다:
+
+include::partial$loop.adoc[]
+
+이미지를 변경합니다:
+
+[#change-deployment-v2-live-ready]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl set image deployment/myboot myboot=quay.io/rhdevelopers/myboot:v2
+----
+
+그리고 오류 없이 진행되는 롤링 업데이트를 확인하세요:
+
+[.console-output]
+[source.bash]
+----
+Aloha from Spring Boot! 131 on myboot-845968c6ff-k4rvb
+Aloha from Spring Boot! 134 on myboot-845968c6ff-9wvt9
+Aloha from Spring Boot! 122 on myboot-845968c6ff-9824z
+Bonjour from Spring Boot! 0 on myboot-8449d5468d-m88z4
+Bonjour from Spring Boot! 1 on myboot-8449d5468d-m88z4
+Aloha from Spring Boot! 135 on myboot-845968c6ff-9wvt9
+Aloha from Spring Boot! 133 on myboot-845968c6ff-k4rvb
+Aloha from Spring Boot! 137 on myboot-845968c6ff-9wvt9
+Bonjour from Spring Boot! 3 on myboot-8449d5468d-m88z4
+----
+
+Endpoints를 확인해서 어떤 pod가 Service에 속해 있는지 봅니다:
+
+[#get-endpoints-before]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl get endpoints myboot -o json | jq '.subsets[].addresses[].ip'
+----
+
+다음은 readiness probe를 통과한 Pod IP들입니다:
+
+[.console-output]
+[source.bash]
+----
+"10.129.2.40"
+"10.130.2.37"
+"10.130.2.38"
+----
+
+== Readiness Probe
+
+이 실습용 애플리케이션에는 스스로를 일부러 비정상 상태로 만드는 ``/misbehave``라는 디버그용 엔드포인트가 있습니다. Pod 하나에 exec로 접속해서 이 엔드포인트를 호출해, readiness 플래그를 실패 상태로 바꿔 봅시다:
+
+[#misbehave-app-live-ready]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl exec -it myboot-845968c6ff-k5lcb -- /bin/bash
+----
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+curl localhost:8080/misbehave
+exit
+----
+
+이제 pod가 더 이상 Ready 상태가 아닌 것을 확인합니다:
+
+[.console-output]
+[source.bash]
+----
+NAME                      READY   STATUS    RESTARTS   AGE
+myboot-845968c6ff-9wshg   1/1     Running   0          11m
+myboot-845968c6ff-k5lcb   0/1     Running   0          12m
+myboot-845968c6ff-zsgx2   1/1     Running   0          11m
+----
+
+이제 Endpoints를 확인합니다:
+
+[#get-endpoints-after]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl get endpoints myboot -o json | jq '.subsets[].addresses[].ip'
+----
+
+그리고 해당 pod가 Service의 로드밸런서에서 빠진 것을 확인합니다:
+
+[.console-output]
+[source.bash]
+----
+"10.130.2.37"
+"10.130.2.38"
+----
+
+이는 curl loop에서도 명확하게 드러납니다:
+
+[.console-output]
+[source.bash]
+----
+Aloha from Spring Boot! 845 on myboot-845968c6ff-9wshg
+Aloha from Spring Boot! 604 on myboot-845968c6ff-zsgx2
+Aloha from Spring Boot! 846 on myboot-845968c6ff-9wshg
+----
+
+== Liveness Probe
+
+이번에는 Readiness가 아니라 Liveness Probe를 실패시켜서, 앞서와 다르게 __Pod 자체가 재시작__된다는 것을 확인해 봅시다. 먼저 v3 이미지로 업데이트합니다:
+
+[#change-deployment-v3-live-ready]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl set image deployment/myboot myboot=quay.io/rhdevelopers/myboot:v3
+----
+
+롤아웃이 복제본 3개 모두에 걸쳐 완료될 때까지 기다립니다:
+
+[.console-output]
+[source.bash]
+----
+kubectl get pods -w
+NAME                      READY   STATUS    RESTARTS   AGE
+myboot-56659c9d69-6sglj   1/1     Running   0          2m2s
+myboot-56659c9d69-mdllq   1/1     Running   0          97s
+myboot-56659c9d69-zjt6q   1/1     Running   0          72s
+----
+
+그리고 curl loop/poller에서 확인할 수 있듯이:
+
+[.console-output]
+[source.bash]
+----
+Jambo from Spring Boot! 40 on myboot-56659c9d69-mdllq
+Jambo from Spring Boot! 26 on myboot-56659c9d69-zjt6q
+Jambo from Spring Boot! 71 on myboot-56659c9d69-6sglj
+----
+
+/alive URL을 가리키도록 Deployment를 수정합니다:
+
+include::partial$tip_vscode_kube_editor.adoc[]
+
+[#change-liveness-v3-live-ready]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl edit deployment myboot
+----
+
+그리고 liveness probe를 변경합니다:
+
+[.console-output]
+[source.bash]
+----
+...
+    spec:
+      containers:
+      - image: quay.io/rhdevelopers/myboot:v3
+        imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /alive
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 2
+        name: myboot
+...
+----
+
+편집기를 저장하고 닫아서 변경 사항이 롤아웃되게 합니다:
+
+[.console-input]
+[source,bash]
+----
+kubectl get pods -w
+----
+
+[.console-output]
+[source,bash]
+----
+NAME                      READY   STATUS        RESTARTS   AGE
+myboot-558b4f8678-nw762   1/1     Running       0          59s
+myboot-558b4f8678-qbrgc   1/1     Running       0          81s
+myboot-558b4f8678-z7f9n   1/1     Running       0          36s
+----
+
+v3 이미지에는 ``/shot``이라는 디버그용 엔드포인트가 있어서, 호출하면 애플리케이션이 (마치 데드락에 걸린 것처럼) 더 이상 응답하지 않는 상태를 흉내 냅니다. 이제 pod 중 하나를 골라 ``exec``로 접속해서 총을 쏴 봅니다:
+
+[#shot-v3-live-ready]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl exec -it myboot-558b4f8678-qbrgc -- /bin/bash
+----
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+curl localhost:8080/shot
+----
+
+Liveness Probe가 몇 차례 연속으로 실패하면, 쿠버네티스는 이 컨테이너가 되돌릴 수 없는 상태에 빠졌다고 판단하고 강제로 재시작합니다. RESTARTS 열의 숫자가 올라간 것을 확인해 보세요:
+
+[.console-output]
+[source.bash]
+----
+NAME                      READY   STATUS    RESTARTS   AGE
+myboot-558b4f8678-nw762   1/1     Running   0          4m7s
+myboot-558b4f8678-qbrgc   1/1     Running   1          4m29s
+myboot-558b4f8678-z7f9n   1/1     Running   0          3m44s
+----
+
+컨테이너 자체가 통째로 재시작되므로, 그 컨테이너 안에 붙어 있던 exec 세션도 함께 강제 종료됩니다(종료 코드 ``137``은 ``SIGKILL``로 강제 종료되었다는 의미입니다):
+
+[.console-input]
+[source,bash]
+----
+kubectl exec -it myboot-558b4f8678-qbrgc -- /bin/bash
+----
+
+[.console-output]
+[source.bash]
+----
+curl localhost:8080/shot
+----
+
+[.console-output]
+[source.bash]
+----
+I have been shot in the head1000610000@myboot-558b4f8678-qbrgc:/app$ command terminated with exit code 137
+----
+
+여기서 Readiness와의 차이가 다시 한번 드러납니다: 재시작되는 Pod는 Readiness Probe가 아직 통과하지 못했으므로 잠시 Endpoints에서 빠지고, 그 사이 나머지 두 Pod가 트래픽을 대신 처리합니다. 그 덕분에 Pod 하나가 재시작되는 동안에도 최종 사용자는 어떤 오류도 보지 못합니다:
+
+[.console-output]
+[source.bash]
+----
+Jambo from Spring Boot! 174 on myboot-558b4f8678-z7f9n
+Jambo from Spring Boot! 11 on myboot-558b4f8678-qbrgc
+Jambo from Spring Boot! 12 on myboot-558b4f8678-qbrgc
+Jambo from Spring Boot! 206 on myboot-558b4f8678-nw762
+Jambo from Spring Boot! 207 on myboot-558b4f8678-nw762
+Jambo from Spring Boot! 175 on myboot-558b4f8678-z7f9n
+Jambo from Spring Boot! 176 on myboot-558b4f8678-z7f9n
+----
+
+== 정리
+
+[#cleanup-live-ready]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl delete deployment myboot
+----
+
+== Startup Probe
+
+일부 애플리케이션은 최초 초기화 시 추가적인 시작 시간이 필요합니다.
+
+이 시나리오를 liveness/readiness probe에 맞추기는 까다로울 수 있는데, 실행 중 이상 현상을 감지하는 정상적인 동작을 위해 probe를 설정해야 하면서도, 동시에 긴 시작 시간까지 감안해야 하기 때문입니다.
+
+:quick-open-file: myboot-deployment-live-ready-aggressive.yml
+
+예를 들어 데드락이 발생할 수 있는 애플리케이션이 있고 그런 문제를 즉시 감지하고 싶다면, ``apps/kubefiles/{quick-open-file}``과 같은 liveness/readiness probe를 사용할 수 있습니다.
+
+include::partial$tip_vscode_quick_open.adoc[]
+
+[.console-output]
+[source,yaml]
+.{quick-open-file}
+----
+include::example$myboot-deployment-live-ready-aggressive.yml[]
+----
+
+그런 다음 해당 deployment를 적용합니다.
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl apply -f apps/kubefiles/myboot-deployment-live-ready-aggressive.yml
+----
+
+pod watch에서 볼 수 있듯이, 때로는 성공적으로 부팅된 이후에도(kubelet이 재시작을 예약하기 때문에) pod가 계속 재시작되는데, 이는 SpringBoot의 시작 시간 때문입니다.
+
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl describe pods
+----
+
+[.console-output]
+[source,bash,subs="+macros,+attributes"]
+----
+Events:
+  Type     Reason     Age                 From               Message
+  ----     ------     ----                ----               -------
+  Normal   Scheduled  96s                 default-scheduler  Successfully assigned myspace/myboot-849ccd6948-8vrfq to devnation
+  Normal   Pulled     92s                 kubelet            Successfully pulled image "quay.io/rhdevelopers/myboot:v1" in 3.295180194s
+  Normal   Created    55s (x2 over 92s)   kubelet            Created container myboot
+  Normal   Started    55s (x2 over 92s)   kubelet            Started container myboot
+  Normal   Pulled     55s                 kubelet            Successfully pulled image "quay.io/rhdevelopers/myboot:v1" in 3.289395484s
+  Warning  Unhealthy  52s (x4 over 90s)   kubelet            Liveness probe failed: Get "http://172.17.0.4:8080/alive": dial tcp 172.17.0.4:8080: connect: connection refused
+  Normal   Killing    52s (x2 over 88s)   kubelet            Container myboot failed liveness probe, will be restarted
+  Normal   Pulling    22s (x3 over 95s)   kubelet            Pulling image "quay.io/rhdevelopers/myboot:v1"
+  Warning  Unhealthy  19s (x10 over 88s)  kubelet            Readiness probe failed: Get "http://172.17.0.4:8080/health": dial tcp 172.17.0.4:8080: connect: connection refused
+----
+
+**Startup probe**는 이 문제를 해결해 줍니다. startup probe가 한 번 성공하고 나면 나머지 probe들이 그 역할을 이어받지만, startup probe를 통과하기 전까지는 liveness도 readiness도 실행될 수 없습니다.
+
+:quick-open-file: myboot-deployment-startup-live-ready.yml
+
+``{quick-open-file}``은 바로 이런 probe를 가진 deployment의 예시입니다.
+
+include::partial$tip_vscode_quick_open.adoc[]
+
+[.console-output]
+[source,yaml]
+.{quick-open-file}
+----
+include::example$myboot-deployment-startup-live-ready.yml[]
+----
+
+차이점은 다음 부분에서 확인할 수 있습니다.
+
+[.console-output]
+[source,yaml]
+----
+        startupProbe:
+          httpGet:
+            path: /alive
+            port: 8080
+          failureThreshold: 6
+          periodSeconds: 5
+          timeoutSeconds: 1
+----
+
+그런 다음 해당 deployment를 적용합니다.
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl apply -f apps/kubefiles/myboot-deployment-startup-live-ready.yml
+----
+
+startup probe는 애플리케이션이 시작되기까지 30초(`5 * 6`)를 기다립니다. 또한 liveness와 readiness 검사의 지연 시간이 0으로 줄어든 것도 확인하세요.
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl get pods -w
+----
+
+[.console-output]
+[source.bash]
+----
+NAME                      READY   STATUS    RESTARTS   AGE
+myboot-579cc5cc47-2bk5p   0/1     Running   0          67s
+----
+
+결국 curl loop에서 pod가 실행 중인 것을 확인할 수 있습니다.
+
+----
+Aloha from Spring Boot! 18 on myboot-849ccd6948-8vrfq
+Aloha from Spring Boot! 19 on myboot-849ccd6948-8vrfq
+Aloha from Spring Boot! 20 on myboot-849ccd6948-8vrfq
+Aloha from Spring Boot! 21 on myboot-849ccd6948-8vrfq
+----
+
+liveness probe가 역할을 이어받았다는 것을 확인해 봅시다.
+pod 중 하나를 골라 ``exec``로 접속해서 총을 쏴 봅니다:
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl exec -it myboot-558b4f8678-qbrgc -- /bin/bash
+----
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+curl localhost:8080/shot
+----
+
+그러면 재시작되는 것을 볼 수 있습니다.
+
+
+pod를 describe해서 probe 통계를 확인합니다:
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl describe pod myboot-579cc5cc47-2bk5p
+----
+
+[.console-output]
+[source.yaml]
+----
+Limits:
+  cpu:     1
+  memory:  400Mi
+Requests:
+  cpu:        250m
+  memory:     300Mi
+Liveness:     http-get http://:8080/ delay=10s timeout=2s period=5s #success=1 #failure=3
+Readiness:    http-get http://:8080/health delay=10s timeout=1s period=3s #success=1 #failure=3
+Startup:      http-get http://:8080/alive delay=0s timeout=1s period=5s #success=1 #failure=12
+Environment:  <none>
+Mounts:
+----
+
+== 정리
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl delete deployment myboot
+kubectl delete svc myboot
+----

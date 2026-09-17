@@ -1,0 +1,250 @@
+= kubectl exec
+
+exec 명령을 사용하면 pod 안으로 "셸 접속"해서, 애플리케이션이 실행되고 있는 작은 리눅스 머신 안에서 직접 명령을 실행할 수 있습니다.
+
+다음과 같이 실행할 수 있습니다:
+
+[.console-input]
+[source,bash]
+----
+kubectl exec -it {podname} -- /bin/bash
+----
+
+또는 다음과 같이도 실행할 수 있습니다:
+
+[.console-input]
+[source,bash]
+----
+kubectl exec {podname} -- /somecommand
+----
+
+이 섹션에서는 쿠버네티스 컨테이너 안에서 Java를 실행할 때 흔히 볼 수 있는 OOMKilled 문제를 디버깅해 보겠습니다.
+
+Resources 장에서 사용한 Spring Boot pod가 여전히 실행 중인지 확인합니다:
+
+[#get-pods-exec]
+[.console-input]
+[source, bash]
+----
+kubectl get pods
+----
+
+[.console-output]
+[source,bash]
+----
+NAME                     READY   STATUS    RESTARTS   AGE
+myboot-d78fb6d58-69kl7   1/1     Running   2          32m
+----
+
+그런 다음 실행 중인 Pod에 ``exec``를 실행해서 컨테이너 안으로 들어가 봅시다:
+
+[#exec-pod-exec]
+[.console-input]
+[source, bash]
+----
+PODNAME=$(kubectl get pod  -l app=myboot -o name)
+kubectl exec -it $PODNAME -- /bin/bash
+----
+
+`ps` 명령을 실행해서 현재 실행 중인 프로세스를 확인합니다:
+
+[#exec-ps-exec]
+[.console-input]
+[source, bash]
+----
+ps -ef
+----
+
+[.console-output]
+[source,bash]
+----
+UID          PID    PPID  C STIME TTY          TIME CMD
+1000610+       1       0  0 19:20 ?        00:00:00 /bin/sh -c java -XX:+PrintFlagsFinal -XX:+PrintGCDetails $JAVA
+1000610+       7       1  2 19:20 ?        00:00:14 java -XX:+PrintFlagsFinal -XX:+PrintGCDetails -jar boot-demo-0
+1000610+      43       0  0 19:27 pts/0    00:00:00 /bin/bash
+1000610+      49      43  0 19:29 pts/0    00:00:00 ps -ef
+----
+
+``top``을 실행해서 메모리 현황을 확인합니다:
+
+[#exec-top-exec]
+[.console-input]
+[source, bash]
+----
+top
+----
+
+// The .no-query-replace tells the course ui to not attempt to replace tokens between % %
+[.no-query-replace]
+[.console-output]
+[source,bash]
+----
+top - 19:29:34 up 2 days,  7:02,  0 users,  load average: 0.16, 0.13, 0.14
+Tasks:   4 total,   1 running,   3 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  2.8 us,  3.4 sy,  0.0 ni, 93.1 id,  0.1 wa,  0.3 hi,  0.3 si,  0.0 st
+KiB Mem : 15389256 total,  6438576 free,  2289352 used,  6661328 buff/cache
+KiB Swap:        0 total,        0 free,        0 used. 13142476 avail Mem
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND
+      1 1000610+  20   0    4292    708    632 S   0.0  0.0   0:00.02 sh
+      7 1000610+  20   0 7511676 328704  16988 S   0.0  2.1   0:14.02 java
+     43 1000610+  20   0   19960   3644   3080 S   0.0  0.0   0:00.00 bash
+     50 1000610+  20   0   42672   3516   3080 R   0.0  0.0   0:00.00 top
+----
+
+배포판 정보를 확인합니다:
+
+[#exec-cat-release-exec]
+[.console-input]
+[source, bash]
+----
+cat /etc/os-release
+----
+
+[.console-output]
+[source,bash]
+----
+PRETTY_NAME="Debian GNU/Linux 9 (stretch)"
+NAME="Debian GNU/Linux"
+VERSION_ID="9"
+VERSION="9 (stretch)"
+ID=debian
+HOME_URL="https://www.debian.org/"
+SUPPORT_URL="https://www.debian.org/support"
+BUG_REPORT_URL="https://bugs.debian.org/"
+----
+
+여유 메모리를 확인합니다:
+
+[#exec-free-exec]
+[.console-input]
+[source, bash]
+----
+free -h
+----
+
+[.console-output]
+[source,bash]
+----
+              total        used        free      shared  buff/cache   available
+Mem:            14G        2.2G        6.1G         17M        6.4G         12G
+Swap:            0B          0B          0B
+----
+
+이제 문제의 일부가 보일 것입니다. "free"는 ``cgroups``를 인식하지 못해서, VM 전체 메모리에 접근할 수 있다고 생각합니다.
+
+JVM이 실제보다 더 큰 Max 메모리를 보고하는 것도 당연합니다:
+
+[#curl-sysresources-exec]
+[.console-input]
+[source, bash]
+----
+curl localhost:8080/sysresources
+----
+
+[.console-output]
+[source,bash]
+----
+Memory: 1324 Cores: 4
+----
+
+[NOTE]
+====
+여기 표시되는 코어 수와 메모리 값은 컨테이너가 실제로 속한 노드 전체의 리소스입니다. 뒤에서 살펴볼 것처럼, 컨테이너에 별도의 리소스 제한을 걸지 않으면 애플리케이션은 이 값을 그대로 보게 됩니다.
+====
+
+Java 버전을 확인합니다:
+
+[#java-version-181-exec]
+[.console-input]
+[source, bash]
+----
+java -version
+----
+
+[.console-output]
+[source,bash]
+----
+openjdk version "1.8.0_181"
+OpenJDK Runtime Environment (build 1.8.0_181-8u181-b13-2~deb9u1-b13)
+OpenJDK 64-Bit Server VM (build 25.181-b13, mixed mode)
+----
+
+JVM에 사용 가능한 리소스를 물어봅니다:
+
+[#java-version-181-settings-exec]
+[.console-input]
+[source, bash]
+----
+java -XshowSettings:vm -version
+----
+
+[.console-output]
+[source,bash]
+----
+VM settings:
+    Max. Heap Size (Estimated): 3.26G
+    Ergonomics Machine Class: server
+    Using VM: OpenJDK 64-Bit Server VM
+
+openjdk version "1.8.0_181"
+OpenJDK Runtime Environment (build 1.8.0_181-8u181-b13-2~deb9u1-b13)
+OpenJDK 64-Bit Server VM (build 25.181-b13, mixed mode)
+----
+
+이제 실제 `cgroups` 설정을 확인합니다:
+
+[#cat-cgroup-exec]
+[.console-input]
+[source, bash]
+----
+cd /sys/fs/cgroup/memory/
+cat memory.limit_in_bytes
+----
+
+[.console-output]
+[source,bash]
+----
+419430400
+----
+
+419430400을 1024와 1024로 나누면 deployment YAML에 지정했던 400이 나옵니다.
+
+JVM 버전이 1.8.0_131 이상이라면 실험적 옵션을 시도해 볼 수 있습니다.
+
+[#java-version-131-settings-exec]
+[.console-input]
+[source, bash]
+----
+java -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XshowSettings:vm -version
+----
+
+[.console-output]
+[source,bash]
+----
+VM settings:
+    Max. Heap Size (Estimated): 112.00M
+    Ergonomics Machine Class: server
+    Using VM: OpenJDK 64-Bit Server VM
+
+openjdk version "1.8.0_181"
+OpenJDK Runtime Environment (build 1.8.0_181-8u181-b13-2~deb9u1-b13)
+OpenJDK 64-Bit Server VM (build 25.181-b13, mixed mode)
+----
+
+이 pod에서 나가려면 ``exit``을 입력하고 엔터를 누르기만 하면 됩니다:
+
+[.console-input]
+[source, bash]
+----
+exit
+----
+
+== 정리
+
+[.console-input]
+[source,bash]
+----
+kubectl delete deployment myboot
+kubectl delete service myboot
+----

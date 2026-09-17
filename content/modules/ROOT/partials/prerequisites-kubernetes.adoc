@@ -1,0 +1,6 @@
+:kubernetes-version: v1.34.0
+:maven-version: 3.9.9
+:java-version: 21
+:stern-version: 1.33.0
+
+이 튜토리얼은 여러분에게 이미 배정된 OpenShift 클러스터 위에서, OpenShift 웹 콘솔이 제공하는 웹 터미널을 통해 진행합니다. 따라서 로컬 머신에 아무것도 설치할 필요가 없습니다 — `Git`, `oc`, `kubectl` 같은 이 튜토리얼에 필요한 CLI 도구는 웹 터미널 안에 이미 설치되어 있습니다.

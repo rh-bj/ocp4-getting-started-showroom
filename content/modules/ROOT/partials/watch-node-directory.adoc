@@ -1,0 +1,16 @@
+
+``hostPath``가 정말로 __노드__의 파일시스템에 데이터를 저장한다는 것을 확인하기 위해, Pod가 아니라 노드 자체에 직접 접속해 봅시다. 먼저 Pod가 어느 노드에서 실행 중인지 확인합니다:
+
+include::partial$find_node_for_pod.adoc[]
+
+``oc debug node/$NODE``는 해당 노드 위에서 임시 디버그 Pod를 실행해서, 그 노드의 파일시스템에 접근할 수 있게 해주는 OpenShift 명령입니다(SSH로 직접 접속하는 것과 비슷한 효과를 냅니다):
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+oc debug node/pass:[${NODE}]
+----
+
+디버그 세션 안에서는 노드의 파일시스템 전체가 `/host` 아래에 마운트되어 있습니다. 이제 노드에 접속했으니, Pod가 ``/tmp/demo``로 마운트한 `{mount-dir}` 디렉터리를(디버그 세션에서는 `/host{mount-dir}` 경로로) 지켜봅시다.
+
+include::partial$file-watch-command.adoc[]

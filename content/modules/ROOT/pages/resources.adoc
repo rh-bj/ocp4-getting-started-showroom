@@ -1,0 +1,337 @@
+= 리소스와 제한
+
+쿠버네티스는 컨테이너마다 CPU와 메모리 사용량을 두 가지 값으로 조절할 수 있습니다: __Requests__(스케줄러가 이 Pod를 배치할 노드를 고를 때 "최소 이만큼은 확보해 달라"는 값)와 __Limits__(컨테이너가 실제로 사용할 수 있는 __최대__ 한도). 문제는, 오래된 JVM은 자신이 __컨테이너 안에__ 있다는 것을 알지 못하고 호스트 머신 전체의 메모리를 기준으로 힙 크기를 계산한다는 것입니다. 이 둘을 지정하지 않으면 어떤 문제가 생기는지, 그리고 이 JVM 문제가 쿠버네티스 위에서는 어떻게 나타나는지를 이번 장에서 직접 확인해 봅니다.
+
+올바른 네임스페이스에 있는지 확인합니다:
+
+:section-k8s: resource
+:set-namespace: {user}-myspace
+
+[TIP]
+====
+아직 만들지 않았다면 ``{set-namespace}``를 생성해야 합니다. 다음 명령으로 네임스페이스가 존재하는지 확인하세요.
+
+[.console-input]
+[source, bash, subs="+attributes"]
+----
+kubectl get ns {set-namespace}
+----
+
+응답이 다음과 같다면:
+
+[.console-output]
+[source,bash, subs="+attributes"]
+----
+Error from server (NotFound): namespaces "{set-namespace}" not found
+----
+
+그런 다음 다음 명령으로 네임스페이스를 생성할 수 있습니다:
+
+[.console-input]
+[source, bash, subs="+attributes"]
+----
+kubectl create ns {set-namespace}
+----
+====
+
+include::partial$set-context.adoc[]
+
+네임스페이스에 아무것도 실행 중이지 않은지 확인합니다:
+
+[#no-resources-resource]
+[.console-input]
+[source, bash]
+----
+kubectl get all
+----
+
+[.console-output]
+[source,bash]
+----
+No resources found in myspace namespace.
+----
+
+먼저 Request나 Limit 없이 애플리케이션을 배포합니다:
+
+[#no-limits-resource]
+[.console-input]
+[source, bash]
+----
+kubectl apply -f apps/kubefiles/myboot-deployment.yml
+----
+
+pod를 describe해서 Limits/Requests 항목이 어떻게 표시되는지 확인합니다:
+
+:section-k8s: resource
+:label-describe: app=myboot
+include::partial$describe.adoc[]
+
+아래 출력의 `Containers` 부분에는 ``Limits``나 `Requests` 항목 자체가 아예 없습니다. 즉 이 pod에는 리소스 제한이 설정되어 있지 않습니다.
+
+[.console-output]
+[source,bash]
+----
+Name:         myboot-66d7d57687-jzbzj
+Namespace:    myspace
+Priority:     0
+Node:         gcp-5xldg-w-b-rlp45.us-central1-b.c.ocp42project.internal/10.0.32.5
+Start Time:   Sun, 29 Mar 2020 14:24:24 -0400
+Labels:       app=myboot
+              pod-template-hash=66d7d57687
+Annotations:  k8s.v1.cni.cncf.io/networks-status:
+                [{
+                    "name": "openshift-sdn",
+                    "interface": "eth0",
+                    "ips": [
+                        "10.130.2.23"
+                    ],
+                    "dns": {},
+                    "default-route": [
+                        "10.130.2.1"
+                    ]
+                }]
+              openshift.io/scc: restricted
+Status:       Running
+IP:           10.130.2.23
+IPs:
+  IP:           10.130.2.23
+Controlled By:  ReplicaSet/myboot-66d7d57687
+Containers:
+  myboot:
+    Container ID:   cri-o://2edfb0a5a93f375516ee49d33df20bee40c14792b37ec1648dc5205244095a53
+    Image:          quay.io/burrsutter/myboot:v1
+    Image ID:       quay.io/burrsutter/myboot@sha256:cdf39f191f5d322ebe6c04cae218b0ad8f6dbbb8a81e81a88c0fbc6e3c05f860
+    Port:           8080/TCP
+    Host Port:      0/TCP
+    State:          Running
+      Started:      Sun, 29 Mar 2020 14:24:32 -0400
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from default-token-vlzsl (ro)
+Conditions:
+  Type              Status
+  Initialized       True
+  Ready             True
+  ContainersReady   True
+  PodScheduled      True
+Volumes:
+  default-token-vlzsl:
+    Type:        Secret (a volume populated by a Secret)
+    SecretName:  default-token-vlzsl
+    Optional:    false
+QoS Class:       BestEffort
+Node-Selectors:  <none>
+Tolerations:     node.kubernetes.io/not-ready:NoExecute for 300s
+                 node.kubernetes.io/unreachable:NoExecute for 300s
+Events:
+  Type    Reason     Age        From                                                                Message
+  ----    ------     ----       ----                                                                -------
+  Normal  Scheduled  <unknown>  default-scheduler                                                   Successfully assigned myspace/myboot-66d7d57687-jzbzj to gcp-5xldg-w-b-rlp45.us-central1-b.c.ocp42project.internal
+  Normal  Pulled     12m        kubelet, gcp-5xldg-w-b-rlp45.us-central1-b.c.ocp42project.internal  Container image "quay.io/burrsutter/myboot:v1" already present on machine
+  Normal  Created    12m        kubelet, gcp-5xldg-w-b-rlp45.us-central1-b.c.ocp42project.internal  Created container myboot
+  Normal  Started    12m        kubelet, gcp-5xldg-w-b-rlp45.us-central1-b.c.ocp42project.internal  Started container myboot
+----
+
+이번에는 Requests를 지정한 버전으로 다시 배포하기 위해, 먼저 해당 deployment를 삭제합니다:
+
+[#delete-deployment-resource]
+[.console-input]
+[source, bash]
+----
+kubectl delete deployment myboot
+----
+
+일부러 과도하게 큰 CPU를 요청하도록 resource request를 지정해서 새 deployment를 생성합니다. 클러스터의 어떤 노드도 이만큼의 여유 CPU를 갖고 있지 않아서 Pod가 스케줄되지 못하는 상황을 재현하기 위한 것입니다:
+
+[#limits-resource]
+[.console-input]
+[source, bash]
+----
+kubectl apply -f apps/kubefiles/myboot-deployment-resources.yml
+----
+
+그리고 Pod의 상태를 확인합니다:
+
+[#limits-get-pod-resource]
+[.console-input]
+[source, bash]
+----
+kubectl get pods
+----
+
+[.console-output]
+[source,bash]
+----
+NAME                      READY   STATUS    RESTARTS   AGE
+myboot-7b7d754c86-kjwlr   0/1     Pending   0          19s
+----
+
+오류에 대한 더 자세한 정보를 확인하려면:
+
+[#get-events-resource]
+[.console-input]
+[source, bash]
+----
+kubectl get events --sort-by=.metadata.creationTimestamp
+----
+
+[.console-output]
+[source,bash]
+----
+<unknown>   Warning   FailedScheduling    pod/myboot-7b7d754c86-kjwlr    0/6 nodes are available: 6 Insufficient cpu.
+<unknown>   Warning   FailedScheduling    pod/myboot-7b7d754c86-kjwlr    0/6 nodes are available: 6 Insufficient cpu.
+----
+
+pod 스펙의 "resource requests"는 최소 하나의 워커 노드가 N개의 코어와 X만큼의 메모리를 사용 가능해야 함을 요구합니다. 이 조건을 만족하는 워커 노드가 없다면 "PENDING" 상태와 함께 이벤트 목록에 해당 내용이 표시됩니다.
+
+pod에 ``kubectl describe``를 실행해서 실패에 대한 더 자세한 정보를 확인할 수도 있습니다.
+
+:section-k8s: resource-limit
+:label-describe: app=myboot
+include::partial$describe.adoc[]
+
+이제 현실적인 값의 Requests/Limits로 이 deployment를 고쳐 봅시다. ``replace``로 변경 이력을 유지하면서 deployment를 수정합니다:
+
+[#apply-deployment-sane-limit-resource]
+[.console-input]
+[source, bash]
+----
+kubectl replace -f apps/kubefiles/myboot-deployment-resources-limits.yml
+----
+
+위 명령은 Deployment 템플릿을 교체하고 Pod에 컨테이너 제한을 지정하도록 지시합니다.
+Pod를 describe합니다:
+
+:section-k8s: resource-soft-limit
+:label-describe: app=myboot
+include::partial$describe.adoc[]
+
+service를 배포합니다:
+
+[#apply-service-sane-limit-resource]
+[.console-input]
+[source, bash]
+----
+kubectl apply -f apps/kubefiles/myboot-service.yml
+----
+
+그리고 Pod를 지켜봅니다:
+
+:section-k8s: resources
+include::partial$watching-pods.adoc[]
+
+다른 터미널에서 해당 service에 반복해서 curl 요청을 보냅니다:
+
+:section-k8s: resource-soft-limit
+:service-exposed: myboot
+include::partial$env-curl.adoc[]
+
+반복해서 실행합니다:
+
+include::partial$loop.adoc[]
+
+또 다른 터미널 창에서 /sysresources 엔드포인트에 curl 요청을 보냅니다:
+
+[#sysresources-sane-limit-resource]
+[.console-input]
+[source, bash]
+----
+curl $IP:$PORT/sysresources
+----
+
+NOTE: 보고된 메모리 값과 resource limit에 설정한 값을 비교해 보세요. 앞서 설명했듯, 이 이미지의 JVM은 여전히 cgroup 제한이 아니라 노드 전체의 메모리를 기준으로 값을 보고합니다.
+
+[#podresources-sane-limit-resource]
+[.console-input]
+[source, bash]
+----
+PODNAME=$(kubectl get pod -l app=myboot -o name)
+kubectl get $PODNAME -o jsonpath='{.spec.containers[*].resources}'
+----
+
+[.console-output]
+[source,bash]
+----
+{
+  "limits": {
+    "cpu": "1",
+    "memory": "400Mi"
+  },
+  "requests": {
+    "cpu": "250m",
+    "memory": "300Mi"
+  }
+}
+----
+
+그런 다음 메모리를 많이 소비하는 `/consume` 엔드포인트에 `curl` 요청을 보내서, 이 Pod의 Limit이 실제로 지켜지는지 확인해 봅시다:
+
+[#consume-sane-limit-resource]
+[.console-input]
+[source, bash]
+----
+curl $IP:$PORT/consume
+----
+
+[.console-output]
+[source,bash]
+----
+curl: (52) Empty reply from server
+----
+
+그리고 loop도 실패하는 것을 확인할 수 있습니다:
+
+[.console-output]
+[source,bash]
+----
+Aloha from Spring Boot! 1120 on myboot-d78fb6d58-69kl7
+curl: (56) Recv failure: Connection reset by peer
+----
+
+Pod를 describe해서 오류를 확인합니다:
+
+:section-k8s: resource-soft-limit-fail
+:label-describe: app=myboot
+include::partial$describe.adoc[]
+
+이번에는 애플리케이션이 자기 스스로 조절하지 못했으므로, 컨테이너가 ``Limits``에 설정된 메모리를 초과하자 쿠버네티스가 직접 컨테이너를 강제 종료시켰습니다. 그리고 다음 부분을 찾아보세요:
+
+[.console-output]
+[source,bash]
+----
+   Last State:     Terminated
+      Reason:       OOMKilled
+      Exit Code:    137
+----
+
+[#terminated-pod-resource]
+[.console-input]
+[source, bash]
+----
+ kubectl get $PODNAME -o jsonpath='{.status.containerStatuses[0].lastState.terminated'}
+----
+
+[.console-output]
+[source,bash]
+----
+{
+  "containerID": "cri-o://7b9be70ce4b616d6083d528dee708cea879da967373dad0d396fb999bd3898d3",
+  "exitCode": 137,
+  "finishedAt": "2020-03-29T19:14:56Z",
+  "reason": "OOMKilled",
+  "startedAt": "2020-03-29T18:50:15Z"
+}
+----
+
+``kubectl get pods -w``의 STATUS 열에도 OOMKilled가 표시되는 것을 볼 수 있습니다:
+
+[.console-output]
+[source,bash]
+----
+NAME                     READY   STATUS      RESTARTS   AGE
+myboot-d78fb6d58-69kl7   0/1     OOMKilled   1          30m
+----
+
+그리고 Spring Boot Pod가 크래시될 때마다 RESTARTS 열이 증가하는 것을 확인할 수 있습니다.

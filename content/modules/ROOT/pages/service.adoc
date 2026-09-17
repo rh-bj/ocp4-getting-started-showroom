@@ -1,0 +1,179 @@
+= Service
+
+Deployment가 만드는 Pod들은 재시작되거나 스케일될 때마다 이름과 IP가 계속 바뀝니다. 그렇다면 다른 애플리케이션이나 사용자는 이 애플리케이션에 어떻게 안정적으로 접근할 수 있을까요? 이때 필요한 것이 __Service__입니다. Service는 레이블 셀렉터로 자신이 대상으로 하는 Pod 집합을 정의하고, 그 Pod들이 바뀌더라도 항상 동일한 이름과 IP(`ClusterIP`)로 접근할 수 있는 안정적인 창구를 제공합니다. 즉, Deployment가 "무엇을 얼마나 실행할지"를 책임진다면, Service는 "그것에 어떻게 접근할지"를 책임집니다.
+
+NOTE: 이 장은 이전 장에서 만든 Deployment를 이어서 사용합니다.
+
+올바른 네임스페이스에 있는지 확인합니다:
+
+:section-k8s: services
+:set-namespace: {user}-myspace
+
+include::partial$set-context.adoc[]
+
+Service를 만들기 전에, 먼저 이전 장에서 만든 Deployment → ReplicaSet → Pod가 여전히 살아 있는지 차례로 확인해 둡시다. Service는 이 Pod들의 레이블(`app=quarkus-demo`)을 기준으로 대상을 찾으므로, Pod가 실제로 그 레이블을 달고 실행 중이어야 합니다.
+
+Deployment가 있는지 확인합니다:
+
+[#have-deployment-service]
+[.console-input]
+[source,bash]
+----
+kubectl get deployments
+----
+
+[.console-output]
+[source,bash]
+----
+NAME                      READY   UP-TO-DATE   AVAILABLE   AGE
+quarkus-demo-deployment   3/3     3            3           8m33s
+----
+
+RS가 있는지 확인합니다:
+
+[#have-rs-service]
+[.console-input]
+[source,bash]
+----
+kubectl get rs
+----
+
+[.console-output]
+[source,bash]
+----
+NAME                                 DESIRED   CURRENT   READY   AGE
+quarkus-demo-deployment-5979886fb7   3         3         3       8m56s
+----
+
+Pod가 있는지 확인합니다:
+
+[#have-pods-service]
+[.console-input]
+[source,bash]
+----
+kubectl get pods
+----
+
+[.console-output]
+[source,bash]
+----
+NAME                                       READY   STATUS    RESTARTS   AGE
+quarkus-demo-deployment-5979886fb7-c888m   1/1     Running   0          9m17s
+quarkus-demo-deployment-5979886fb7-gdtnz   1/1     Running   0          9m17s
+quarkus-demo-deployment-5979886fb7-grf59   1/1     Running   0          9m17s
+----
+
+이제 Service를 생성합니다. ``selector``는 이 Service가 어떤 Pod들을 대상으로 할지를 레이블로 지정하는 부분이고, ``ports``는 Service가 외부에 노출할 ``port``와 실제 컨테이너가 리슨하는 ``targetPort``를 연결하는 부분입니다.
+
+[#create-service]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: the-service
+spec:
+  selector:
+    app: quarkus-demo
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+  type: LoadBalancer
+EOF
+----
+
+방금 만든 Service를 지켜보면서, 어떤 주소들이 할당되는지 확인해 봅시다:
+
+:section-k8s: services
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl get services -w
+----
+
+[.console-output]
+[source,bash,subs="+macros,+attributes"]
+----
+NAME          TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+the-service   LoadBalancer   172.30.103.41   <pending>     80:31974/TCP     4s
+----
+
+``CLUSTER-IP``는 Service를 만들자마자 즉시 할당되는, 클러스터 내부에서 사용할 안정적인 주소입니다. ``EXTERNAL-IP``는 클러스터 밖에서 접근하기 위한 주소로 실제 클라우드 로드밸런서가 있어야 채워지는데, 이 실습 환경에는 로드밸런서가 연결되어 있지 않으므로 계속 ``<pending>``으로 남아 있을 수 있습니다. 우리는 클러스터 내부 네트워크의 터미널을 사용하고 있으므로 문제없습니다 — 이미 할당된 ``CLUSTER-IP``로 접근하면 됩니다.
+
+:section-k8s: services
+:service-exposed: the-service
+include::partial$env-curl.adoc[]
+
+결과:
+
+[.console-output]
+[source,bash]
+----
+Supersonic Subatomic Java with Quarkus quarkus-demo-deployment-5979886fb7-grf59:1
+----
+
+NOTE: "5979886fb7-grf59"는 Pod의 고유 id의 일부입니다. `.java` 코드는 ``System.getenv().getOrDefault("HOSTNAME", "unknown");``을 사용합니다.
+
+== Route로 외부에 노출하기
+
+지금까지 만든 Service는 ``ClusterIP``를 통해 __클러스터 내부__에서만 접근할 수 있습니다. 그렇다면 클러스터 __외부__의 사용자가 이 애플리케이션에 접근하려면 어떻게 해야 할까요? 순수 쿠버네티스에는 ``Ingress``라는 리소스가 있지만(이 개념은 xref:ingress.adoc[Ingress] 장에서 자세히 다룹니다), OpenShift에는 그보다 먼저 만들어진 더 간단한 방법인 ``Route``가 있습니다. ``Route``는 트래픽 규칙 정의와 그 구현(내장된 HAProxy Router)을 하나로 묶어서 제공하므로, 별도의 컨트롤러 설치 없이 명령 한 줄로 바로 사용할 수 있습니다.
+
+``oc expose service``는 지정한 Service를 대상으로 하는 Route를 자동으로 만들어 줍니다. Route가 만들어지면 OpenShift는 `*.apps.<클러스터 도메인>` 형태의 호스트 이름을 자동으로 할당해서, 그 이름으로 들어오는 외부 트래픽을 우리 Service로 연결해 줍니다:
+
+[#expose-service]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+oc expose service the-service
+oc get routes
+----
+
+[.console-output]
+[source,bash]
+----
+NAME          HOST/PORT                                     PATH   SERVICES      PORT   TERMINATION   WILDCARD
+the-service   the-service-myspace.apps.gcp.burrsutter.dev          the-service   8080                 None
+----
+
+그런 다음 service에 요청을 보냅니다:
+
+[#curl-services-route]
+[.console-input]
+[source, bash]
+----
+curl the-service-myspace.apps.gcp.burrsutter.dev
+----
+
+[.console-output]
+[source,bash]
+----
+Supersonic Subatomic Java with Quarkus quarkus-demo-deployment-5979886fb7-gdtnz:3
+----
+
+=== jsonpath로 스크립팅에 필요한 데이터 요소 추출하기
+
+다음 명령은 쿠버네티스 객체를 JSON 형식의 파일로 덤프합니다:
+
+[.console-input]
+[source,bash]
+----
+oc get route the-service -o json > myroutes.json
+----
+
+JSONPath 문법을 사용해서 JSON에서 특정 정보만 추출할 수도 있습니다.
+
+[#route-jq]
+[.console-input]
+[source, bash]
+----
+oc get route the-service -o jsonpath="{.spec.host}"
+----
+
+[.console-output]
+[source, bash]
+----
+the-service-myspace.apps.gcp.burrsutter.dev
+----

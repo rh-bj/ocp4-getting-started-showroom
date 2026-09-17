@@ -1,0 +1,680 @@
+= Operator
+include::_attributes.adoc[]
+:watch-terminal: 터미널 2
+:log-terminal: 터미널 3
+:section-namespace: pizzahat
+
+Operator는 우리가 제공하는 쿠버네티스 API 확장 기능을 관리하는 자동화된 컨트롤러를 설치해서, 쿠버네티스 클러스터의 기능을 확장하는 방법입니다.
+
+이 섹션에서는 Operator가 이를 위해 쿠버네티스 API와 어떻게 상호작용하는지 더 깊이 살펴보겠습니다.
+
+.실제 세계의 Operator
+****
+이 튜토리얼을 마스터 클래스에서 시연할 때는, OpenShift의 Kafka Operator를 보여주는 것도 좋습니다(대략적인 개요는 <<kafka-operator-install,여기>> 참고). OpenShift 클러스터에서 시연할 때 핵심 포인트는 다음과 같습니다:
+
+. OperatorHub를 사용해서 얼마나 다양한 Operator가 있는지 보여줍니다.
+. `AMQStreams` 또는 `Strimzi` Operator를 설치해서 클러스터에 Kafka 지원(즉, 우리가 곧 보게 될 CRD)을 추가합니다.
+. Operator가 설치되면, `Kafka` CR을 설치할 네임스페이스를 하나 선택합니다.
+. Developer Perspective에서 Operator가 Kafka를 생성하는 모습을 보여줍니다.
+
+이 튜토리얼의 이 섹션에서는 직접 만든 장난감 같은 "Pizza Operator"로 Operator의 이런 측면들을 시연해 보겠습니다.
+****
+
+== 준비
+
+=== 네임스페이스
+
+Operator 배포와, Operator가 다룰 ``CustomResources``를 담아 둘 네임스페이스가 필요합니다.
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl create namespace {section-namespace}
+kubectl config set-context --current --namespace={section-namespace}
+----
+
+=== 지켜보기
+
+아직 열려 있지 않다면, 현재 네임스페이스의 pod에서 벌어지는 일을 지켜볼 터미널을 하나 열어두세요(**{watch-terminal}**이라고 부르겠습니다).
+
+:section-k8s: crd
+include::partial$watching-pods-with-nodes.adoc[]
+
+=== 로그
+
+``stern``이라는 도구로 특정 pod의 출력을 지켜볼 세 번째 터미널을 열어둡니다(**{log-terminal}**이라고 부르겠습니다).
+
+include::partial$open-terminal-in-editor-inset.adoc[]
+
+:stern-namespace: {section-namespace}
+:stern-pattern: p-pod
+:section-k8s: crd
+
+include::partial$stern-watch.adoc[]
+
+
+== CRD
+
+Custom Resource는 API를 확장합니다.
+
+Custom Controller는 원하는 상태를 지속적으로 유지하는 기능을 제공합니다. 즉, 상태를 모니터링하고 리소스를 설정과 일치하도록 조정합니다.
+
+https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/
+
+https://kubernetes.io/docs/tasks/access-kubernetes-api/custom-resources/custom-resource-definitions/
+
+Custom Resource Definition(CRD)은 버전 1.7에 도입되었습니다.
+
+CRD는 쿠버네티스 API를 확장합니다. 이 api 리소스들은 쉽게 확인할 수 있습니다:
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl api-resources
+----
+
+[.console-output]
+[source,bash,subs="+macros,+attributes"]
+----
+NAME                              SHORTNAMES   APIVERSION                             NAMESPACED   KIND
+bindings                                       v1                                     true         Binding
+componentstatuses                 cs           v1                                     false        ComponentStatus
+configmaps                        cm           v1                                     true         ConfigMap
+endpoints                         ep           v1                                     true         Endpoint
+... #<.>
+----
+<.> 이 목록은 일부가 생략되었습니다.
+
+이 목록에서 ``Deployments``처럼 이미 배운 몇몇 리소스를 확인할 수 있습니다.
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl api-resources | grep Deployment
+----
+
+[.console-output]
+[source,bash,subs="+macros,+attributes"]
+----
+deployments                       deploy       apps/v1                                true         Deployment
+----
+
+``CustomResourceDefinition``은 쿠버네티스 ``api-resources``의 일부입니다. 클러스터에 이미 설치된 CRD가 있는지 확인해 봅시다.
+
+[#get-crds]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl get crds --all-namespaces
+----
+
+[.console-output]
+[source,bash,subs="+macros,+attributes"]
+----
+NAME                                                              CREATED AT
+alertmanagerconfigs.monitoring.coreos.com                         2021-07-12T01:37:49Z
+alertmanagers.monitoring.coreos.com                               2021-07-12T01:37:53Z
+apiservers.config.openshift.io                                    2021-07-12T01:37:06Z
+authentications.config.openshift.io                               2021-07-12T01:37:06Z
+authentications.operator.openshift.io                             2021-07-12T01:37:53Z
+baremetalhosts.metal3.io                                          2021-07-12T01:38:25Z
+builds.config.openshift.io                                        2021-07-12T01:37:06Z
+catalogsources.operators.coreos.com                               2021-07-12T01:37:49Z
+cloudcredentials.operator.openshift.io                            2021-07-12T01:37:10Z
+... #<.>
+----
+<.> 이 목록은 일부가 생략되었습니다.
+
+OpenShift의 본질은 결국 쿠버네티스입니다. OpenShift가 쿠버네티스를 확장하는 주요 방법 중 하나가 바로 CRD이며, 이것이 막 설치를 마친 상태에서도 이렇게 많은 CRD가 설치되어 있는 이유를 설명해줍니다.
+
+
+=== CRD 예시
+
+:quick-open-file: pizza-crd.yaml
+
+이제 우리만의 Custom Resource Definition을 만들어 봅시다. 나중에, 이 정의로부터 생성되는 Custom Resource가 우리 operator가 다룰 대상이 됩니다. 우리가 만들 CRD가 어떤 모습인지 확인하려면 ``{quick-open-file}``을 살펴보세요.
+
+include::partial$tip_vscode_quick_open.adoc[]
+
+[source, yaml]
+.{quick-open-file}
+----
+include::example$pizza-crd.yaml[]
+----
+<1> 누군가 이 CRD를 describe할 때 표시될 설명입니다.
+<2> 우리 ``CustomResource``가 가질 값 중 하나를 설명합니다. 바로 (`array`) 토핑 목록((`string`) 타입)입니다.
+<3> ``CustomResource``의 spec에 정의할 수 있는 두 번째 필드를 설명합니다. 사용할 소스의 이름((`string`) 타입)입니다.
+<4> 우리 CustomResource가 가질 이름입니다. ``Deployment``나 ``Pod``와 비슷한 개념입니다.
+
+[IMPORTANT]
+====
+많은 CRD는 노출되는 필드에 대한 메타데이터를 포함해서, 쿠버네티스 API가 CR을 검증할 수 있게 합니다. API 버전 `v1` 이전에는 이것이 강제되지 않았지만, 쿠버네티스 v1.22부터는 모든 ``CustomResource``가 ``v1``이어야 하므로 객체 스키마를 정의해야 합니다.
+====
+
+이제 이 CRD를 클러스터에 추가해서 `Pizza` Custom Resource를 생성할 수 있도록 해봅시다.
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl apply -f apps/pizzas/pizza-crd.yaml
+----
+
+이제 우리 CRD가 API의 일부가 되었는지 확인할 수 있을 것입니다.
+
+[#get-pizzas-crds]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl get crds | grep pizza
+----
+
+결과:
+
+[.console-output]
+[source,bash]
+----
+NAME                           CREATED AT
+pizzas.mykubernetes.acme.org   2020-07-01T08:12:00Z
+----
+
+CRD는 모든 ``api-resources``의 일부이므로, 이제 ``pizzas``가 클러스터의 api-resources를 확장한 것을 확인할 수 있을 것입니다:
+
+[#get-api-pizzas-crds]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl api-resources | grep pizzas
+----
+
+결과:
+
+[.console-output]
+[source,bash]
+----
+pizzas                            pz           mykubernetes.acme.org          true         Pizza
+----
+
+마지막으로, ``CustomResourceDefinition``의 스키마를 정의했으므로 사람들이 우리 api를 더 쉽게 사용할 수 있게 되었습니다. CRD는 `kubectl describe` 기능과도 연동됩니다.
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl explain pizza
+----
+
+그러면 다음과 같이 유용한 출력을 얻을 수 있습니다.
+
+[.console-output]
+[source,bash,subs="+macros,+attributes"]
+----
+KIND:     Pizza
+VERSION:  mykubernetes.acme.org/v1
+
+DESCRIPTION:
+     A custom resource for making yummy pizzas #<.>
+
+FIELDS:
+   apiVersion   <string>
+     APIVersion defines the versioned schema of this representation of an
+     object. Servers should convert recognized schemas to the latest internal
+     value, and may reject unrecognized values. More info:
+     https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+
+   kind <string>
+     Kind is a string value representing the REST resource this object
+     represents. Servers may infer this from the endpoint the client submits
+     requests to. Cannot be updated. In CamelCase. More info:
+     https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+
+   metadata     <Object>
+     Standard object's metadata. More info:
+     https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+
+   sauce        <string> #<.>
+     The name of the sauce to use on our pizza
+
+   toppings     <[]string> #<.>
+     List of toppings for our pizza'
+----
+<.> 이 값이 우리의 전체 pizza 설명과 일치한다는 점에 주목하세요.
+<.> 이는 CRD의 Schema 섹션에서 sauce에 대한 부분입니다. string 타입이라고 되어 있습니다. 설명은 description 필드에서 가져옵니다.
+<.> 이는 CRD의 Schema 섹션에서 toppings에 대한 부분입니다. 문자열 배열이라고 되어 있습니다. 설명은 description 필드에서 가져옵니다.
+
+=== Operator 배포하기
+
+우리 CRD는 특정 네임스페이스에 한정되지 않지만, `pizza` CR을 다룰 operator를 배치할 네임스페이스는 필요합니다.
+
+근본적으로 operator는 이전에 배포했던 `myboot` 애플리케이션과 같은 하나의 애플리케이션일 뿐입니다. 차이점은 operator가 쿠버네티스 API와 상호작용하는 방법을 알고, 자신이 관심 있는 리소스를 지켜본다는 것입니다.
+
+:quick-open-file: PizzaResourceWatcher.java
+
+곧 배포할 Pizza operator는 link:https://github.com/java-operator-sdk/java-operator-sdk[java operator sdk^]를 사용해서 link:https://quarkus.io/[Quarkus^]로 작성되었습니다. 이 operator의 코드는 이 저장소 안에 있습니다. operator 컨트롤러의 핵심 클래스 중 하나인 ``{quick-open-file}``을 확인해 보세요:
+
+include::partial$tip_vscode_quick_open.adoc[]
+
+[.console-output]
+[source,java,subs="+macros,+attributes"]
+.{quick-open-file}
+----
+package org.acme;
+
+import io.fabric8.kubernetes.api.model.ContainerBuilder;
+import io.fabric8.kubernetes.api.model.ObjectMetaBuilder;
+import io.fabric8.kubernetes.api.model.Pod;
+import io.fabric8.kubernetes.api.model.PodBuilder;
+import io.fabric8.kubernetes.api.model.PodSpecBuilder;
+import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.KubernetesClientException;
+import io.fabric8.kubernetes.client.Watcher;
+import io.fabric8.kubernetes.client.dsl.NonNamespaceOperation;
+import io.fabric8.kubernetes.client.dsl.Resource;
+import io.quarkus.runtime.StartupEvent;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import javax.enterprise.event.Observes;
+import javax.inject.Inject;
+
+public class PizzaResourceWatcher {
+
+    @Inject
+    KubernetesClient defaultClient;
+
+    @Inject
+    NonNamespaceOperation<PizzaResource, PizzaResourceList, PizzaResourceDoneable, Resource<PizzaResource, PizzaResourceDoneable>> crClient;
+
+    void onStartup(@Observes StartupEvent event) {
+        System.out.println("Startup");
+        crClient.watch(new Watcher<PizzaResource>() { //<.>
+            @Override
+            public void eventReceived(Action action, PizzaResource resource) {
+                System.out.println("Event " + action.name());
+                if (action == Action.ADDED) {
+                    final String app = resource.getMetadata().getName();
+                    final String sauce = resource.getSpec().getSauce();
+                    final List<String> toppings = resource.getSpec().getToppings();
+                    final Map<String, String> labels = new HashMap<>();
+                    labels.put("app", app);
+                    final ObjectMetaBuilder objectMetaBuilder = new ObjectMetaBuilder().withName(app + "-pod")
+                            .withNamespace(resource.getMetadata().getNamespace()).withLabels(labels);
+                    final ContainerBuilder containerBuilder = new ContainerBuilder().withName("pizza-maker")
+                            .withImage("quay.io/lordofthejars/pizza-maker:1.0.0").withCommand("/work/application")
+                            .withArgs("--sauce=" + sauce, "--toppings=" + String.join(",", toppings));
+                    final PodSpecBuilder podSpecBuilder = new PodSpecBuilder().withContainers(containerBuilder.build())
+                            .withRestartPolicy("Never");
+                    final PodBuilder podBuilder = new PodBuilder().withMetadata(objectMetaBuilder.build())
+                            .withSpec(podSpecBuilder.build());
+                    final Pod pod = podBuilder.build();
+                    defaultClient.resource(pod).createOrReplace();
+
+                }
+            }
+
+            @Override
+            public void onClose(KubernetesClientException e) {
+            }
+        });
+    }
+
+}
+----
+<.> 우리의 커스텀 리소스인 ``Pizza``를 지켜보고 있다는 점에 주목하세요.
+
+[TIP]
+====
+operator 컨트롤러를 만드는 것은 이 튜토리얼의 범위를 벗어납니다. Quarkus로 operator를 만드는 방법을 더 알아보고 싶다면 link:https://bit.ly/3kwJmcd[이 20분짜리 튜토리얼^]을 시청해 보세요.
+====
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl apply -f apps/pizzas/pizza-deployment.yaml
+----
+
+곧 watch 창(**{watch-terminal}**)에서 다음과 같은 내용을 보게 될 것입니다.
+
+[tabs]
+====
+{watch-terminal}::
++
+--
+[.console-output]
+[source,bash,subs="+macros,+attributes"]
+----
+NAME                                        READY   STATUS    RESTARTS   AGE
+quarkus-operator-example-5f5bf777bc-glfg9   1/1     Running   0          58s
+----
+--
+====
+
+[IMPORTANT]
+====
+다음 섹션으로 넘어가기 전에 operator deployment의 ``STATUS``가 ``Running``이 될 때까지 기다리세요.
+====
+
+=== 피자 만들기
+
+operator가 실행되면, 우리 `Pizza` Custom Resource의 정보를 계속 지켜보다가, Custom Resource 인스턴스의 정보로 구성된 pod를 띄워서 피자를 만드는(척하는) 데 그 정보를 사용합니다.
+
+예를 들어, 다음과 같은 Pizza ``CustomResourceDefinition``의 인스턴스를 살펴봅시다:
+
+[.console-output]
+[source,yaml,subs="+macros,+attributes"]
+----
+include::example$cheese-pizza.yaml[]
+----
+
+특히 다음 부분을 눈여겨보세요:
+
+* *Sauce*: `regular`
+* *Toppings*: `mozzarella`
+
+이제 이 ``CustomResource``를 생성해 봅시다:
+
+[#create-pizzas-crds]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl apply -f apps/pizzas/cheese-pizza.yaml
+kubectl get pizzas
+----
+
+[.console-output]
+[source,bash]
+----
+NAME      AGE
+cheesep   4s
+----
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl describe pizza cheesep
+----
+
+[.console-output]
+[source,bash,subs="+attributes"]
+----
+Name:         cheesep
+Namespace:    {section-namespace}
+Labels:       <none>
+Annotations:  kubectl.kubernetes.io/last-applied-configuration:
+                {"apiVersion":"mykubernetes.acme.org/v1beta2","kind":"Pizza","metadata":{"annotations":{},"name":"cheesep","namespace":"{section-namespace}"},"spec":...
+API Version:  mykubernetes.acme.org/v1beta2
+Kind:         Pizza
+...
+----
+
+그러면 **{watch-terminal}**에서 Operator가 어떻게 반응하는지 볼 수 있습니다...
+
+[tabs]
+====
+{watch-terminal}::
++
+--
+[.console-output]
+[source,bash,subs="+macros,+attributes"]
+----
+NAME                                        READY   STATUS      RESTARTS   AGE
+cheesep-pod                                 0/1     Completed   0          3s
+quarkus-operator-example-5f5bf777bc-glfg9   1/1     Running     0          44m
+----
+
+--
+====
+
+그리고 ``cheesep-pod``가 완료되면 **{log-terminal}**에서 다음 내용을 볼 수 있습니다.
+
+[tabs]
+====
+{log-terminal}::
++
+--
+[.console-output]
+[source,bash,subs="+quotes,+macros"]
+----
++ cheesep-pod › pizza-maker
+pass:[cheesep-pod pizza-maker __  ____  __  _____   ___  __ ____  ______ ]
+pass:[cheesep-pod pizza-maker  --/ __ \/ / / / _ | / _ \/ //_/ / / / __/ ]
+pass:[cheesep-pod pizza-maker  -/ /_/ / /_/ / __ |/ , _/ ,< / /_/ /\ \   ]
+pass:[cheesep-pod pizza-maker --\___\_\____/_/ |_/_/|_/_/|_|\____/___/   ]
+cheesep-pod pizza-maker 2021-07-19 08:16:26,113 INFO  [io.quarkus] (main) pizza-maker 1.0-SNAPSHOT (powered by Quarkus 1.4.0.CR1) started in 1.063s. 
+cheesep-pod pizza-maker 2021-07-19 08:16:26,114 INFO  [io.quarkus] (main) Profile prod activated. 
+cheesep-pod pizza-maker 2021-07-19 08:16:26,114 INFO  [io.quarkus] (main) Installed features: [cdi]
+cheesep-pod pizza-maker Doing The Base
+cheesep-pod pizza-maker Adding Sauce #regular#
+cheesep-pod pizza-maker Adding Toppings #[mozzarella]#
+cheesep-pod pizza-maker Baking
+cheesep-pod pizza-maker Baked
+cheesep-pod pizza-maker Ready For Delivery
+cheesep-pod pizza-maker 2021-07-19 08:16:26,615 INFO  [io.quarkus] (main) pizza-maker stopped in 0.000s
+----
+--
+====
+
+**Sauce**와 **Toppings**가 `pizza` CustomResource에 지정한 것과 일치한다는 점에 주목하세요.
+
+=== 피자 더 만들기
+
+:quick-open-file: meat-pizza.yaml
+
+``{quick-open-file}``과 ``veggie-lovers.yaml``을 살펴보고 거기서 sauce와 toppings 옵션을 확인해 보세요.
+
+include::partial$tip_vscode_quick_open.adoc[]
+
+[.console-output]
+[source,yaml,subs="+macros,+attributes"]
+.{quick-open-file}
+----
+include::example$meat-pizza.yaml[]
+----
+
+이제 피자를 만듭니다.
+
+[#create-more-pizzas-crds]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl apply -f apps/pizzas/meat-pizza.yaml
+kubectl apply -f apps/pizzas/veggie-lovers.yaml
+kubectl get pizzas --all-namespaces
+----
+
+**{watch-terminal}**의 pod watch에는 다음과 같이 표시될 것입니다.
+
+[tabs]
+====
+{watch-terminal}::
++
+--
+[.console-output]
+[source,bash,subs="+macros,+attributes"]
+----
+NAME                                      READY  STATUS             AGE    NODE
+cheesep-pod                               0/1    Completed          8m46s  devnation
+meatsp-pod                                0/1    ContainerCreating  8s     devnation
+quarkus-operator-example-fdb76c946-cwmnq  1/1    Running            14m    devnation
+veggiep-pod                               0/1    ContainerCreating  6s     devnation
+----
+--
+====
+
+그리고 로그 터미널 **{log-terminal}**에서 다음 내용을 확인하세요.
+
+[tabs]
+====
+{log-terminal}::
++
+--
+[.console-output]
+[source,bash,subs="+macros,+attributes,+quotes"]
+----
++ meatsp-pod › pizza-maker
+pass:[meatsp-pod pizza-maker __  ____  __  _____   ___  __ ____  ______ ]
+pass:[meatsp-pod pizza-maker  --/ __ \/ / / / _ | / _ \/ //_/ / / / __/ ]
+pass:[meatsp-pod pizza-maker  -/ /_/ / /_/ / __ |/ , _/ ,< / /_/ /\ \   ]
+pass:[meatsp-pod pizza-maker --\___\_\____/_/ |_/_/|_/_/|_|\____/___/   ]
+meatsp-pod pizza-maker 2021-07-19 08:24:48,015 INFO  [io.quarkus] (main) pizza-maker 1.0-SNAPSHOT (powered by Quarkus 1.4.0.CR1) started in 0.817s. 
+meatsp-pod pizza-maker 2021-07-19 08:24:48,016 INFO  [io.quarkus] (main) Profile prod activated. 
+meatsp-pod pizza-maker 2021-07-19 08:24:48,016 INFO  [io.quarkus] (main) Installed features: [cdi]
+meatsp-pod pizza-maker Doing The Base
+meatsp-pod pizza-maker Adding Sauce #extra# #<.>
+meatsp-pod pizza-maker Adding Toppings #[mozzarella,pepperoni,sausage,bacon]#
+meatsp-pod pizza-maker Baking
+meatsp-pod pizza-maker Baked
+meatsp-pod pizza-maker Ready For Delivery
+meatsp-pod pizza-maker 2021-07-19 08:24:48,517 INFO  [io.quarkus] (main) pizza-maker stopped in 0.000s
++ veggiep-pod › pizza-maker
+pass:[veggiep-pod pizza-maker __  ____  __  _____   ___  __ ____  ______ ]
+pass:[veggiep-pod pizza-maker  --/ __ \/ / / / _ | / _ \/ //_/ / / / __/ ]
+pass:[veggiep-pod pizza-maker  -/ /_/ / /_/ / __ |/ , _/ ,< / /_/ /\ \   ]
+pass:[veggiep-pod pizza-maker --\___\_\____/_/ |_/_/|_/_/|_|\____/___/   ]
+veggiep-pod pizza-maker 2021-07-19 08:24:55,289 INFO  [io.quarkus] (main) pizza-maker 1.0-SNAPSHOT (powered by Quarkus 1.4.0.CR1) started in 0.869s. 
+veggiep-pod pizza-maker 2021-07-19 08:24:55,289 INFO  [io.quarkus] (main) Profile prod activated. 
+veggiep-pod pizza-maker 2021-07-19 08:24:55,289 INFO  [io.quarkus] (main) Installed features: [cdi]
+veggiep-pod pizza-maker Doing The Base
+veggiep-pod pizza-maker Adding Sauce #extra# #<.>
+veggiep-pod pizza-maker Adding Toppings #[mozzarella,black olives]#
+veggiep-pod pizza-maker Baking
+veggiep-pod pizza-maker Baked
+veggiep-pod pizza-maker Ready For Delivery
+veggiep-pod pizza-maker 2021-07-19 08:24:55,790 INFO  [io.quarkus] (main) pizza-maker stopped in 0.000s
+----
+<.> meat-pizza CR의 ``sauce``와 ``toppings``와 일치합니다.
+<.> veggie-lovers CR의 ``sauce``와 ``toppings``와 일치합니다.
+--
+====
+
+=== 정리
+
+네임스페이스의 모든 것을 정리해 봅시다.
+
+[#delete-pizzas-crds]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl delete all --all #<.>
+kubectl delete ns {section-namespace}
+----
+<.> 네임스페이스는 보통 내부 리소스를 자동으로 정리하는 경향이 있지만, `finalizer` 문제가 생기지 않도록 먼저 비워두는 것이 대체로 좋은 습관입니다.
+
+[.console-output]
+[source,bash]
+----
+pizza.mykubernetes.acme.org "cheesep" deleted
+pizza.mykubernetes.acme.org "meatsp" deleted
+pizza.mykubernetes.acme.org "veggiep" deleted
+pod "cheesep-pod" deleted
+pod "meatsp-pod" deleted
+pod "quarkus-operator-example-fdb76c946-cwmnq" deleted
+pod "veggiep-pod" deleted
+deployment.apps "quarkus-operator-example" deleted
+namespace "pizzahat" deleted
+----
+
+마지막으로, ``section-namespace``처럼 특정 네임스페이스에 묶여 있지 않던 우리 CRD도 제거해 봅시다.
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl delete crd pizzas.mykubernetes.acme.org #<.>
+----
+<.> crd를 삭제할 때는 정규화된 전체 이름으로 참조해야 합니다.
+
+[.console-output]
+[source,bash,subs="+macros,+attributes"]
+----
+customresourcedefinition.apiextensions.k8s.io "pizzas.mykubernetes.acme.org" deleted
+----
+
+== Kafka 만들어보기
+
+지금까지 Pizza Operator라는 장난감으로 CRD와 Operator의 동작 원리를 익혔습니다. 이번에는 실제로 널리 쓰이는 오픈소스 Operator인 https://github.com/strimzi/strimzi-kafka-operator/blob/master/install/cluster-operator/040-Crd-kafka.yaml[Strimzi Kafka Operator]를 설치해서, 같은 원리가 실무에서는 어떻게 훨씬 복잡한 시스템(Kafka 클러스터)을 자동화하는 데 쓰이는지 확인해 봅시다.
+
+이 실습을 위해 새 네임스페이스를 생성합니다:
+
+[#create-namespace-franz]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl create namespace franz
+kubectl config set-context --current --namespace=franz
+----
+
+[#kafka-operator-install]
+=== Operator 설치하기
+
+OpenShift 웹 콘솔의 __OperatorHub__(Operators → OperatorHub)에서 `Streams for Apache Kafka`(또는 `Strimzi`) Operator를 검색해서 설치합니다.
+
+image:operator-hub-openshift.png[OperatorHub in OpenShift]
+
+=== 설치 확인하기
+
+Operator 설치가 끝났으면, 그 Operator가 실제로 클러스터에 떠 있는지(`csv`, 즉 ClusterServiceVersion)와 ``Kafka``라는 CRD가 새로 추가되었는지 확인해 봅시다:
+
+[#verify-install]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl get csv -n operators
+kubectl get crds | grep kafka
+----
+
+다른 터미널에서 watch를 시작합니다:
+
+[#watch-pods]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl get pods -w
+----
+
+Pizza Operator 때와 마찬가지로, 이제 우리가 할 일은 원하는 상태를 나타내는 Custom Resource 하나를 배포하는 것뿐입니다. Kafka 브로커와 ZooKeeper를 몇 개씩 띄울지 같은 세부 사항은 Kafka Operator가 알아서 처리합니다. Kafka 클러스터를 요청하는 리소스를 배포합니다:
+
+[#deploy-cluster]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl apply -f apps/kubefiles/mykafka.yml
+----
+
+[.console-output]
+[source,bash]
+----
+NAME                                          READY   STATUS    RESTARTS   AGE
+my-cluster-entity-operator-66676cb9fb-fzckz   2/2     Running   0          29s
+my-cluster-kafka-0                            2/2     Running   0          60s
+my-cluster-kafka-1                            2/2     Running   0          60s
+my-cluster-kafka-2                            2/2     Running   0          60s
+my-cluster-zookeeper-0                        2/2     Running   0          92s
+my-cluster-zookeeper-1                        2/2     Running   0          92s
+my-cluster-zookeeper-2                        2/2     Running   0          92s
+----
+
+그리고 Kafka로부터 모든 정보를 조회할 수 있습니다:
+
+[#get-kafkas-crd]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl get kafkas
+----
+
+[.console-output]
+[source,bash]
+----
+NAME         DESIRED KAFKA REPLICAS   DESIRED ZK REPLICAS
+my-cluster   3                        3
+----
+
+=== 정리
+
+[#clean-up]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl delete namespace {section-namespace}
+kubectl delete -f apps/pizzas/pizza-crd.yaml
+kubectl delete kafka my-cluster
+kubectl delete namespace franz
+----

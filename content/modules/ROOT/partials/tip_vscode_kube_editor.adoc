@@ -1,0 +1,10 @@
+[TIP]
+====
+VSCode 안에서 이 튜토리얼을 진행하고 있거나 대상 리소스를 편집할 때 VSCode를 사용하고 싶다면, ``kubectl edit``을 실행하기 전에 다음 환경 변수를 설정해 두세요:
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+export KUBE_EDITOR="code -w"
+---- 
+====

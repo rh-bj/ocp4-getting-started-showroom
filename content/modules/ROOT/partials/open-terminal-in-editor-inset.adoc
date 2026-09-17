@@ -1,0 +1,4 @@
+.VSCode: 편집기에서 터미널 열기
+****
+VSCode 안에서 이 튜토리얼을 진행하고 있다면 지금쯤 터미널을 배치할 공간이 부족해졌을 수 있습니다! 최신 버전의 VSCode를 사용하고 있다면 kbd:[CTRL+SHIFT+p](Mac OSX에서는 kbd:[CMD+SHIFT+p])를 눌러 `Terminal: Create Terminal in Editor Area` 명령을 실행해서 편집기 패널에 새 터미널을 여는 방법을 고려해 보세요.
+****

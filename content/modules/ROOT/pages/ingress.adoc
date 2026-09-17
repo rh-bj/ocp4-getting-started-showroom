@@ -1,0 +1,240 @@
+= Ingress
+
+xref:service.adoc[Service] 장에서는 OpenShift 고유의 기능인 Route로 애플리케이션을 외부에 노출했습니다. 이번 장에서는 Route의 기반이 되는, 쿠버네티스 표준 리소스인 ``Ingress``를 직접 사용해 봅니다. OpenShift 클러스터에는 이미 이 표준 Ingress API를 처리하는 라우터(Ingress 컨트롤러)가 내장되어 있으므로, 별도로 컨트롤러를 설치하거나 활성화할 필요 없이 바로 `Ingress` 리소스를 만들어 사용할 수 있습니다.
+
+올바른 네임스페이스에 있는지 확인합니다.
+
+== 애플리케이션 배포하기
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quarkus-demo-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quarkus-demo
+  template:
+    metadata:
+      labels:
+        app: quarkus-demo
+        env: dev
+    spec:
+      containers:
+      - name: quarkus-demo
+        image: quay.io/rhdevelopers/quarkus-demo:v1
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+EOF
+----
+
+이번에는 Service를 `NodePort` 타입으로 노출합니다. Ingress는 결국 이 Service를 백엔드로 사용하므로, Service 자체가 굳이 외부에 직접 노출되어 있을 필요는 없습니다만, 지금까지 배운 것과는 다른 타입도 한번 사용해 봅시다:
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl expose deployment quarkus-demo-deployment --type=NodePort --port=8080
+----
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl get service quarkus-demo-deployment
+----
+
+[.console-output]
+[source,bash,subs="+macros,+attributes"]
+----
+NAME                      TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+quarkus-demo-deployment   NodePort   10.105.106.66   <none>        8080:30408/TCP   11s
+----
+
+:section-k8s: ingress
+:service-exposed: quarkus-demo-deployment
+include::partial$env-curl.adoc[]
+
+== Ingress 설정하기
+
+Ingress 리소스는 다음과 같이 정의합니다. ``rules``는 어떤 호스트 이름(`host`)과 경로(`path`)로 들어온 요청을 어떤 Service(`backend`)로 보낼지를 정의하는 라우팅 규칙입니다. Service를 직접 외부에 노출하는 것과 달리, Ingress는 이런 규칙을 __여러 개__ 정의해서 호스트 이름이나 경로에 따라 서로 다른 Service로 트래픽을 나눠 보낼 수 있습니다(잠시 후 두 번째 규칙을 추가해서 이를 직접 확인해 봅니다):
+
+[source, yaml]
+----
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: example-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+spec:
+  rules:
+  - host: kube-devnation.info
+    http:
+      paths:
+      - pathType: Prefix
+        path: /
+        backend:
+          service: 
+            name: quarkus-demo-deployment
+            port:
+              number: 8080
+----
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl apply -f apps/kubefiles/demo-ingress.yaml
+----
+
+Ingress 리소스의 정보를 조회합니다:
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl get ingress
+----
+
+[.console-output]
+[source,bash,subs="+macros,+attributes"]
+----
+NAME              CLASS    HOSTS                 ADDRESS          PORTS   AGE
+example-ingress   <none>   kube-devnation.info   192.168.99.115   80      68s
+----
+
+`ADDRESS` 필드가 설정될 때까지 기다려야 합니다. 이 주소는 OpenShift 라우터(내장된 Ingress 컨트롤러)가 실제로 이 트래픽을 받는 위치입니다. 몇 분 정도 걸릴 수 있습니다.
+
+우리 실습 터미널은 클러스터 내부 네트워크에 있으므로, 실제 공인 DNS 없이도 ``kube-devnation.info``라는 호스트 이름이 방금 확인한 ``ADDRESS``를 가리키도록 ``/etc/hosts``에 직접 등록해서 흉내 낼 수 있습니다:
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+./etc/hosts
+----
+172.17.0.15 kube-devnation.info
+----
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+curl kube-devnation.info
+----
+
+[.console-output]
+[source,bash,subs="+macros,+attributes"]
+----
+Supersonic Subatomic Java with Quarkus quarkus-demo-deployment-8cf45f5c8-qmzwl:1
+----
+
+== 두 번째 Deployment
+
+service의 두 번째 버전을 배포합니다:
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mynode-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mynode
+  template:
+    metadata:
+      labels:
+        app: mynode
+    spec:
+      containers:
+      - name: mynode
+        image: quay.io/rhdevelopers/mynode:v1
+        ports:
+        - containerPort: 8000
+EOF
+----
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl expose deployment mynode-deployment --type=NodePort --port=8000
+----
+
+== Ingress 업데이트
+
+이제 같은 호스트 이름 아래에 경로 규칙을 하나 더 추가해서, 앞서 언급한 경로 기반 라우팅을 직접 확인해 봅시다. `/` 경로는 계속 ``quarkus-demo-deployment``로, 새로 추가하는 `/v2` 경로는 ``mynode-deployment``로 보내도록 Ingress 리소스를 업데이트합니다:
+
+[source, yaml]
+----
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: example-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+spec:
+  rules:
+  - host: kube-devnation.info
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: quarkus-demo-deployment
+          servicePort: 8080
+      - path: /v2
+        backend:
+          serviceName: mynode-deployment
+          servicePort: 8000
+----
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl apply -f apps/kubefiles/demo-ingress-2.yaml
+----
+
+테스트해 봅니다:
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+curl kube-devnation.info
+----
+
+[.console-output]
+[source,bash,subs="+macros,+attributes"]
+----
+Supersonic Subatomic Java with Quarkus quarkus-demo-deployment-8cf45f5c8-qmzwl:2
+----
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+curl kube-devnation.info/v2
+----
+
+[.console-output]
+[source,bash,subs="+macros,+attributes"]
+----
+Node Bonjour on mynode-deployment-77c7bf857d-5nfl4 0
+----
+
+
+== 정리
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl delete deployment mynode-deployment
+kubectl delete service mynode-deployment
+
+kubectl delete deployment quarkus-demo-deployment
+kubectl delete service quarkus-demo-deployment
+
+kubectl delete -f apps/kubefiles/demo-ingress-2.yaml
+----

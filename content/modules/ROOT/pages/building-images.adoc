@@ -1,0 +1,254 @@
+= 이미지 빌드하기
+
+// See antora yaml (such as github-pages.yml) to change what attribute docker-host is set to
+
+지금까지는 이미 만들어진 컨테이너 이미지(`quay.io/rhdevelopers/...`)를 가져다 배포하기만 했습니다. 이번 장에서는 잠시 쿠버네티스를 떠나서, 그 이미지가 애초에 어떻게 만들어지는지, 그리고 컨테이너에 메모리/CPU 제한을 걸었을 때 Java 애플리케이션이 왜 예상과 다르게 동작할 수 있는지를 직접 체험해 봅니다. 이 경험은 다음 장인 xref:resources.adoc[리소스와 제한]에서 쿠버네티스의 Requests/Limits를 이해하는 데 중요한 밑바탕이 됩니다.
+
+== 사전 준비
+
+이 섹션에서는 로컬 머신에서 Docker(Docker Tools 또는 네이티브 Docker)를 실행하고 있다고 가정합니다. 앞의 장들과 달리 이번 장의 명령들은 쿠버네티스 클러스터가 아니라 로컬 Docker 데몬을 대상으로 하므로, 클러스터 작업과 섞이지 않도록 새 터미널 창에서 진행하는 것이 좋습니다.
+
+== 애플리케이션 아티팩트 빌드하기
+
+먼저 빌드하려는 애플리케이션을 간단히 살펴봅시다.
+
+:quick-open-file: MyRESTController.java
+include::partial$tip_vscode_quick_open.adoc[]
+
+.MyRESTController.java
+image::hello-world-app.png[]
+
+Spring Boot Java 프로젝트를 컴파일, 빌드, 테스트합니다:
+
+[#build-building-images]
+[.console-input]
+[source, bash, subs="+attributes"]
+----
+cd apps/helloworld/springboot
+mvn clean package
+java -jar target/boot-demo-1.0.0.jar
+----
+
+그런 다음 별도의 터미널에서 ``curl``로 요청합니다:
+
+[.console-input]
+[source, bash]
+----
+curl localhost:8080
+----
+
+[.console-output]
+[source,bash]
+----
+Aloha from Spring Boot! 1 on unknown
+----
+
+``unknown``인 이유는 아직 환경 변수가 설정되지 않았기 때문이며, Docker 컨테이너와 쿠버네티스 안에서는 설정됩니다.
+
+== 컨테이너 이미지 빌드하기
+
+NOTE: ``quay.io``를 사용하려는 레지스트리(예: `docker.io`)로, ``{myrepo}``를 여러분의 조직 이름으로 바꾸세요. 다음 단계는 Mac/Windows/Linux용 Docker가 정상적으로 설치되어 있다고 가정합니다.
+
+[#build-container--building-images]
+[.console-input]
+[source, bash, subs="+attributes"]
+----
+docker build -t quay.io/{myrepo}/myapp:v1 .
+----
+
+결과:
+
+[.console-output]
+[source,bash, subs="+attributes"]
+----
+Sending build context to Docker daemon  14.47MB
+Step 1/6 : FROM openjdk:8u151
+ ---> a30a1e547e6d
+Step 2/6 : ENV JAVA_APP_JAR boot-demo-1.0.0.jar
+ ---> Using cache
+ ---> 62b714308856
+Step 3/6 : WORKDIR /app/
+ ---> Using cache
+ ---> aefc5bf44b15
+Step 4/6 : COPY target/$JAVA_APP_JAR .
+ ---> f881c5f5815b
+Step 5/6 : EXPOSE 8080
+ ---> Running in 4e9adc135345
+Removing intermediate container 4e9adc135345
+ ---> 2909459c83f6
+Step 6/6 : CMD java $JAVA_OPTIONS -jar $JAVA_APP_JAR
+ ---> Running in 46bcab555de7
+Removing intermediate container 46bcab555de7
+ ---> 85b78b9b70b1
+Successfully built 85b78b9b70b1
+Successfully tagged quay.io/{myrepo}/myapp:v1
+----
+
+== 컨테이너 이미지 실행하기
+
+새로 만든 Docker 컨테이너를 실행하고 테스트합니다:
+
+[#run-container-building-images]
+[.console-input]
+[source, bash, subs="+attributes"]
+----
+docker run --rm -it -p 8080:8080 --name myapp quay.io/{myrepo}/myapp:v1
+----
+
+[#curl-container-building-images]
+[.console-input]
+[source, bash, subs="+attributes"]
+----
+curl {docker-host}:8080
+----
+
+[.console-output]
+[source,bash]
+----
+Aloha from Spring Boot! 1 on 76851270a3e7
+----
+
+[#curl-sys-container-building-images]
+[.console-input]
+[source, bash, subs="+attributes"]
+----
+curl {docker-host}:8080/sysresources
+----
+
+[.console-output]
+[source,bash]
+----
+Memory: 1268 Cores: 3
+----
+
+이 수치는 아래 이미지에 보이는 것처럼 Docker 데몬에 할당된 메모리와 CPU를 기준으로 합니다:
+
+.Docker 설정
+image::docker-settings.png[Docker Settings]
+
+[#curl-consume-container-building-images]
+[.console-input]
+[source, bash, subs="+attributes"]
+----
+curl {docker-host}:8080/consume
+----
+
+[.console-output]
+[source,bash]
+----
+Allocated about 80% (1.2 GiB) of the max allowed JVM memory size (1.2 GiB)
+----
+
+Docker 컨테이너를 멈추고 제거합니다:
+
+----
+control-c
+----
+
+== 리소스를 제한한 상태로 컨테이너 실행하기
+
+실제 운영 환경(그리고 쿠버네티스)에서는 컨테이너에 메모리와 CPU 제한을 거는 것이 일반적입니다. 문제는, 오래된 JVM은 자신이 __컨테이너 안에__ 있다는 것을 알지 못하고 호스트 머신 전체의 메모리를 기준으로 힙 크기를 계산한다는 것입니다. 이 문제를 직접 재현해 보기 위해, 이번에는 이 Linux 컨테이너에 할당되는 리소스를 실제로 제한해 봅시다.
+
+[#run-container-constrained-building-images]
+[.console-input]
+[source, bash, subs="+attributes"]
+----
+docker run --rm -it -p 8080:8080 -m 400m --cpus="1" --name myapp quay.io/{myrepo}/myapp:v1
+----
+
+방금 컨테이너를 400MB 메모리로 제한했는데도, 애플리케이션이 자신이 인식하는 시스템 리소스가 무엇인지 확인해 봅시다:
+
+[#curl-sys-constrained-container-building-images]
+[.console-input]
+[source, bash, subs="+attributes"]
+----
+curl {docker-host}:8080/sysresources
+----
+
+[.console-output]
+[source,bash]
+----
+Memory: 1268 Cores: 3
+----
+
+``-m 400m``으로 제한했는데도 애플리케이션은 여전히 호스트의 전체 메모리를 보고하고 있습니다. 이 상태로 메모리를 많이 소비하는 엔드포인트를 호출하면, JVM이 컨테이너의 실제 한도보다 훨씬 큰 힙을 할당하려다 컨테이너 자체가 강제 종료되는 상황을 재현할 수 있습니다:
+
+[#curl-consume-crash-container-building-images]
+[.console-input]
+[source, bash, subs="+attributes"]
+----
+curl {docker-host}:8080/consume
+----
+
+== 메모리 문제 해결하기
+
+이 동작을 바로잡으려면, JVM이 호스트 전체가 아니라 컨테이너에 부여된 cgroup 제한을 인식하도록 설정된 다른 Dockerfile(`Dockerfile_Memory`)을 사용해서 이미지를 다시 빌드합니다:
+
+[#build-mem-container-building-images]
+[.console-input]
+[source, bash, subs="+attributes"]
+----
+docker build -t quay.io/{myrepo}/myapp:v1 -f Dockerfile_Memory .
+----
+
+이제 docker run으로 실행합니다:
+
+[#run-sys-constrained-fix-container-building-images]
+[.console-input]
+[source, bash, subs="+attributes"]
+----
+docker run --rm -it -p 8080:8080 -m 400m --cpus="1" --name myapp quay.io/{myrepo}/myapp:v1
+----
+
+이번에는 시스템 리소스가 실제 컨테이너 제한에 맞춰 정확히 보고되는지 ``curl``로 확인합니다:
+
+[#curl-sys-constrained-fix-container-building-images]
+[.console-input]
+[source, bash, subs="+attributes"]
+----
+curl {docker-host}:8080/sysresources
+----
+
+[.console-output]
+[source,bash]
+----
+Memory: 112 Cores: 3
+----
+
+이번에도 메모리를 많이 소비하는 엔드포인트를 호출해 봅시다. JVM이 이제 컨테이너의 실제 한도(112MB)를 인식하고 있으므로, 그 한도 안에서 스스로 할당량을 조절해서 이번에는 컨테이너가 강제 종료되지 않을 것입니다:
+
+[#curl-consume-fix-container-building-images]
+[.console-input]
+[source, bash, subs="+attributes"]
+----
+curl {docker-host}:8080/consume
+----
+
+[.console-output]
+[source,bash]
+----
+Allocated about 80% (98.0 MiB) of the max allowed JVM memory size (112.0 MiB)
+----
+
+지금까지 만든 이미지는 아직 로컬 Docker 데몬 안에만 있습니다. 쿠버네티스가 이 이미지로 Pod를 실행하려면, 지금까지 실습에서 계속 사용해 온 `quay.io/rhdevelopers/...` 이미지들처럼 클러스터가 접근할 수 있는 레지스트리에 이미지가 올라가 있어야 합니다. 이미지가 만족스럽다면 원하는 레지스트리로 푸시합니다:
+
+[#push-container-building-images]
+[.console-input]
+[source, bash, subs="+attributes"]
+----
+docker login quay.io
+docker push quay.io/{myrepo}/myapp:v1
+----
+
+[.console-output]
+[source,bash]
+----
+.
+.
+.
+20c527f217db: Pushed
+61c06e07759a: Pushed
+bcbe43405751: Pushed
+e1df5dc88d2c: Pushed
+v1: digest: sha256:d22d4af6e297a024b061dbaae05be76c771fdb1db51643dc2dd8b8e047f79647 size: 2630
+----

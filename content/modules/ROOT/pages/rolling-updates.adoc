@@ -1,0 +1,302 @@
+= 롤링 업데이트
+
+앞서 xref:kubectl.adoc#set-image-myboot-v1[kubectl] 장에서 이미지를 바꿔서 잠깐 롤링 업데이트를 맛봤습니다. 이번 장에서는 그 과정을 한 단계씩 멈춰서 자세히 들여다봅니다: Deployment의 이미지가 바뀌면 새 리비전의 ReplicaSet이 만들어지고, 기존 ReplicaSet의 복제본 수를 서서히 줄이는 동시에 새 ReplicaSet의 복제본 수를 서서히 늘리면서 전환이 이루어집니다. 이 전략 덕분에 애플리케이션을 완전히 내렸다가 올리지 않고도(즉, 무중단으로) 새 버전으로 넘어갈 수 있습니다.
+
+올바른 네임스페이스에 있는지 확인합니다.
+
+:section-k8s: rolling
+:set-namespace: {user}-myspace
+include::partial$set-context.adoc[]
+
+[TIP,subs="attributes+,+macros"]
+====
+방금 xref::resources.adoc[리소스와 제한 섹션, window=_blank]에서 넘어왔다면 필요한 pod와 deployment가 이미 실행 중일 것입니다. 그렇지 않다면 {set-namespace}에 필요한 요소들을 배포하기 위해 다음 명령을 실행해야 합니다.
+====
+
+필요하다면 Spring Boot 앱을 배포합니다:
+
+[#deploy-myboot-rolling]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+kubectl apply -f apps/kubefiles/myboot-deployment-resources-limits.yml
+kubectl apply -f apps/kubefiles/myboot-service.yml
+----
+
+**터미널 1**: Pod를 지켜봅니다.
+
+include::partial$watching-pods.adoc[]
+
+**터미널 2**: service에 반복해서 curl 요청을 보냅니다.
+
+:service-exposed: myboot
+
+include::partial$env-curl.adoc[]
+
+그리고 loop 스크립트를 실행합니다:
+
+include::partial$loop.adoc[]
+
+
+**터미널 3**: 명령을 실행합니다.
+
+Deployment를 describe(또는 `kubectl edit`)합니다:
+
+:describe-deployment-name: myboot
+:section-k8s: rolling-init
+
+include::partial$describe-deployment.adoc[]
+
+// The .no-query-replace tells the course ui to not attempt to replace tokens between % %
+[.no-query-replace]
+[.console-output]
+[source,bash]
+----
+.
+.
+.
+Replicas:               1 desired | 1 updated | 1 total | 1 available | 0 unavailable
+StrategyType:           RollingUpdate
+MinReadySeconds:        0
+RollingUpdateStrategy:  25% max unavailable, 25% max surge
+.
+.
+.
+----
+
+`StrategyType` 옵션에는 ``RollingUpdate``와 ``Recreate``가 있습니다(``Recreate``는 기존 Pod를 모두 내린 뒤에 새 Pod를 올리는, 더 단순하지만 다운타임이 있는 전략입니다). ``RollingUpdateStrategy``의 ``max unavailable``은 전환 중 동시에 내려갈 수 있는 Pod의 최대 비율을, ``max surge``는 원래 복제본 수보다 얼마나 더 많은 Pod를 일시적으로 추가할 수 있는지를 뜻합니다.
+
+이제 복제본을 2개로 늘려서, 앞으로 있을 롤링 업데이트에서 Pod가 여러 개일 때 전환 과정을 관찰할 수 있게 준비해 둡시다. 복제본 수를 변경합니다:
+
+include::partial$tip_vscode_kube_editor.adoc[]
+
+[#edit-deployment-replicas-rolling]
+[.console-input]
+[source, bash]
+----
+kubectl edit deployment myboot
+----
+
+"replicas"를 찾습니다:
+
+[.console-output]
+[source,yaml]
+----
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: myboot
+----
+
+그리고 "2"로 변경합니다:
+
+[.console-output]
+[source, yaml]
+----
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 2
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: myboot
+----
+
+편집기를 저장하고 닫으면 새로운 pod가 생겨납니다:
+
+[#edit-deployment-replicas-get-pod-rolling]
+[.console-input]
+[source, bash]
+----
+kubectl get pods
+----
+
+[.console-output]
+[source,bash]
+----
+NAME                     READY   STATUS    RESTARTS   AGE
+myboot-d78fb6d58-2fqml   1/1     Running   0          25s
+myboot-d78fb6d58-ljkjp   1/1     Running   0          3m
+----
+
+이제 실제로 롤링 업데이트를 일으켜 봅시다. deployment에 연결된 이미지를 변경합니다:
+
+[#edit-deployment-v2-rolling]
+[.console-input]
+[source, bash]
+----
+kubectl edit deployment myboot
+----
+
+image 속성을 찾습니다:
+
+[source, yaml]
+----
+    spec:
+      containers:
+      - image: quay.io/rhdevelopers/myboot:v1
+        imagePullPolicy: IfNotPresent
+        name: myboot
+----
+
+그리고 이미지를 ``myboot:v2``로 변경합니다:
+
+[source, yaml]
+----
+    spec:
+      containers:
+      - image: quay.io/rhdevelopers/myboot:v2
+        imagePullPolicy: IfNotPresent
+        name: myboot
+----
+
+편집기를 저장하고 나면, 새 리비전의 Pod가 뜨는 동안 옛 리비전의 Pod가 아직 남아 있는 __과도기 상태__를 볼 수 있을 것입니다:
+
+[#edit-deployment-v2-get-pod-rolling]
+[.console-input]
+[source, bash]
+----
+kubectl get pods
+----
+
+[.console-output]
+[source,bash]
+----
+NAME                      READY   STATUS              RESTARTS   AGE
+myboot-7fbc4b97df-4ntmk   1/1     Running             0          9s
+myboot-7fbc4b97df-qtkzj   0/1     ContainerCreating   0          0s
+myboot-d78fb6d58-2fqml    1/1     Running             0          3m29s
+myboot-d78fb6d58-ljkjp    1/1     Terminating         0          8m
+----
+
+그리고 터미널 2의 출력:
+
+[.console-output]
+[source,bash]
+----
+Aloha from Spring Boot! 211 on myboot-d78fb6d58-2fqml
+Aloha from Spring Boot! 212 on myboot-d78fb6d58-2fqml
+Bonjour from Spring Boot! 0 on myboot-7fbc4b97df-4ntmk
+Bonjour from Spring Boot! 1 on myboot-7fbc4b97df-4ntmk
+----
+
+deployment의 상태를 확인합니다:
+
+[#rollout-v2-rolling]
+[.console-input]
+[source, bash]
+----
+kubectl rollout status deployment myboot
+----
+
+[.console-output]
+[source,bash]
+----
+deployment "myboot" successfully rolled out
+----
+
+새로운 RS가 생긴 것을 확인할 수 있습니다:
+
+[#rs-v2-rolling]
+[.console-input]
+[source, bash]
+----
+kubectl get rs
+----
+
+[.console-output]
+[source,bash]
+----
+NAME                DESIRED   CURRENT   READY   AGE
+myboot-7fbc4b97df   2         2         2       116s
+myboot-d78fb6d58    0         0         0       10m
+----
+
+Deployment를 describe합니다:
+
+
+:describe-deployment-name: myboot
+:section-k8s: rolling
+
+include::partial$describe-deployment.adoc[]
+
+그리고 Events 섹션을 확인합니다:
+
+[.console-output]
+[source,bash]
+----
+...
+Events:
+  Type    Reason             Age    From                   Message
+  ----    ------             ----   ----                   -------
+  Normal  ScalingReplicaSet  16m    deployment-controller  Scaled up replica set myboot-d78fb6d58 to 1
+  Normal  ScalingReplicaSet  6m15s  deployment-controller  Scaled up replica set myboot-d78fb6d58 to 2
+  Normal  ScalingReplicaSet  2m55s  deployment-controller  Scaled up replica set myboot-7fbc4b97df to 1
+  Normal  ScalingReplicaSet  2m46s  deployment-controller  Scaled down replica set myboot-d78fb6d58 to 1
+  Normal  ScalingReplicaSet  2m46s  deployment-controller  Scaled up replica set myboot-7fbc4b97df to 2
+  Normal  ScalingReplicaSet  2m37s  deployment-controller  Scaled down replica set myboot-d78fb6d58 to 0
+----
+
+다음 명령을 실행하면 deployment에 연결된 리비전 목록을 확인할 수 있습니다:
+[#rollout-history]
+[.console-input]
+[source, bash]
+----
+kubectl rollout history deployment/myboot
+----
+
+다음 명령으로 v1로 롤백할 수 있습니다:
+
+[#describe-rollback-rolling]
+[.console-input]
+[source, bash]
+----
+kubectl rollout undo deployment/myboot --to-revision=1
+----
+
+그러면 Aloha로 롤백됩니다:
+
+[.console-output]
+[source,bash]
+----
+Bonjour from Spring Boot! 501 on myboot-7fbc4b97df-qtkzj
+Bonjour from Spring Boot! 502 on myboot-7fbc4b97df-qtkzj
+Aloha from Spring Boot! 0 on myboot-d78fb6d58-vnlch
+----
+
+[IMPORTANT]
+====
+이 Deployment에는 아직 Liveness/Readiness Probe가 정의되어 있지 않으므로, 롤오버가 진행되는 동안 loop 창에서 다음과 같은 연결 오류가 몇 차례 발생할 수 있습니다:
+
+[.console-output]
+[source,bash]
+----
+Aloha from Spring Boot! 119 on myboot-d78fb6d58-2zp4h
+curl: (7) Failed to connect to 192.168.99.100 port 31528: Connection refused
+----
+
+Readiness Probe가 없으면 쿠버네티스는 컨테이너가 `Running` 상태가 되는 즉시 그 Pod를 Service의 Endpoints에 추가합니다. 하지만 Spring Boot 애플리케이션이 실제로 요청을 받을 준비가 되기까지는 그보다 조금 더 시간이 걸리기 때문에, 그 짧은 틈에 들어온 요청은 실패합니다(이 문제는 xref:live-ready.adoc[Liveness와 Readiness] 장에서 Probe를 추가해 직접 해결해 봅니다).
+
+Spring Boot 이미지 대신 Quarkus 이미지를 사용해 보세요.
+
+[#describe-rollback-quarkus-rolling]
+[.console-input]
+[source, bash]
+----
+kubectl set image deployment/myboot myboot=quay.io/rhdevelopers/quarkus-demo:v1
+----
+
+그러면 오류가 발생하지 않아야 합니다. Quarkus는 그야말로 놀라울 정도로 빠르게 부팅됩니다.
+
+[.console-output]
+[source,bash]
+----
+Aloha from Spring Boot! 62 on myboot-d78fb6d58-smb7h
+Aloha from Spring Boot! 63 on myboot-d78fb6d58-smb7h
+Supersonic Subatomic Java with Quarkus myboot-5cf696848b-tlt6l:1
+Supersonic Subatomic Java with Quarkus myboot-5cf696848b-tlt6l:2
+----
+====

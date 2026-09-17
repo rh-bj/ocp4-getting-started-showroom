@@ -1,0 +1,17 @@
+[#{section-k8s}-kubectl-watch-pods]
+[tabs]
+====
+{watch-terminal}::
++
+--
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+watch -n 1 "kubectl get pods -o wide \#<.>
+  | awk '{print \$1 \" \" \$2 \" \" \$3 \" \" \$5 \" \" \$7}' | column -t" #<.>
+----
+<.> `-o wide` 옵션을 사용하면 Pod가 스케줄된 노드를 확인할 수 있습니다.
+<.> 줄이 너무 길어지지 않도록 ``awk``와 ``column``을 사용해서 원하는 열만 가져와 정렬합니다.
+
+--
+====
