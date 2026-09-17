@@ -1,34 +1,104 @@
 = 롤링 업데이트
 include::vars.adoc[]
 
+IMPORTANT: 이 실습은 직전의 `Resources and Limits` 실습 환경을 이어서 사용합니다.
+
 앞서 xref:kubectl.adoc#set-image-myboot-v1[oc] 장에서 이미지를 바꿔서 잠깐 롤링 업데이트를 맛봤습니다. 이번 장에서는 그 과정을 한 단계씩 멈춰서 자세히 들여다봅니다: Deployment의 이미지가 바뀌면 새 리비전의 ReplicaSet이 만들어지고, 기존 ReplicaSet의 복제본 수를 서서히 줄이는 동시에 새 ReplicaSet의 복제본 수를 서서히 늘리면서 전환이 이루어집니다. 이 전략 덕분에 애플리케이션을 완전히 내렸다가 올리지 않고도(즉, 무중단으로) 새 버전으로 넘어갈 수 있습니다.
 
-올바른 네임스페이스에 있는지 확인합니다.
+* *Terminal#1에서 수행*
+
+올바른 네임스페이스에 있는지 확인합니다:
 
 :section-k8s: rolling
-:set-namespace: {user}-myspace
-include::partial$set-context.adoc[]
+:set-namespace: myspace
+
+include::partial$new-terminal.adoc[]
+
+== '리소스와 제한' 파트에서 사용한 deployment를 삭제한 경우
 
 [TIP,subs="attributes+,+macros"]
 ====
-방금 xref::resources.adoc[리소스와 제한 섹션, window=_blank]에서 넘어왔다면 필요한 pod와 deployment가 이미 실행 중일 것입니다. 그렇지 않다면 {set-namespace}에 필요한 요소들을 배포하기 위해 다음 명령을 실행해야 합니다.
+방금 xref::resources.adoc[리소스와 제한 섹션, window=_blank]에서 넘어왔다면 필요한 pod와 deployment가 이미 실행 중일 것입니다. 그렇지 않다면 {user}-{set-namespace}에 필요한 요소들을 배포하기 위해 다음 명령을 실행해야 합니다.
 ====
 
-필요하다면 Spring Boot 앱을 배포합니다:
+만약 '리소스와 제한' 파트에서 사용한 deployment를 삭제해버렸다면 다음 명령어를 통해 Spring Boot 앱을 배포합니다:
 
 [#deploy-myboot-rolling]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc apply -f apps/kubefiles/myboot-deployment-resources-limits.yml
-oc apply -f apps/kubefiles/myboot-service.yml
+###################################################
+### '리소스와 제한' 파트에서 사용한 deployment를 삭제한 경우에만 실행
+###################################################
+cat <<EOF | oc create -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: myboot
+  name: myboot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: myboot
+  template:
+    metadata:
+      labels:
+        app: myboot
+    spec:
+      containers:
+      - name: myboot
+        image: quay.io/rhdevelopers/myboot:v1
+        ports:
+          - containerPort: 8080
+        resources:
+          requests: 
+            memory: "400Mi" 
+            cpu: "250m" # 1/4 core
+          # NOTE: These are the same limits we tested our Docker Container with earlier
+          # -m matches limits.memory and --cpus matches limits.cpu
+          limits:
+            memory: "600Mi"
+            cpu: "1000m" # 1 core
+EOF
 ----
 
-**터미널 1**: Pod를 지켜봅니다.
+[#deploy-myboot-rolling]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+###################################################
+### '리소스와 제한' 파트에서 사용한 service를 삭제한 경우에만 실행
+###################################################
+cat <<EOF | oc create -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: myboot
+  labels:
+    app: myboot    
+spec:
+  ports:
+  - name: http
+    port: 8080
+  selector:
+    app: myboot
+EOF
+----
+
+
+== 실습 시작
+
+* *Terminal#1에서 수행*
+
+터미널 1에서는 Pod를 지켜봅니다.
 
 include::partial$watching-pods.adoc[]
 
-**터미널 2**: service에 반복해서 curl 요청을 보냅니다.
+* *Terminal#2에서 수행*
+이제 service에 반복해서 curl 요청을 보냅니다.
+(이전 실습에서 실행했던 loop 스크립트가 계속 돌고 있다면 그대로 두세요)
 
 :service-exposed: myboot
 
@@ -36,10 +106,10 @@ include::partial$env-curl.adoc[]
 
 그리고 loop 스크립트를 실행합니다:
 
+:curl-loop-sleep-time: 1
 include::partial$loop.adoc[]
 
-
-**터미널 3**: 명령을 실행합니다.
+* *Terminal#3에서 수행*
 
 Deployment를 describe(또는 `oc edit`)합니다:
 
@@ -69,14 +139,14 @@ RollingUpdateStrategy:  25% max unavailable, 25% max surge
 
 이제 복제본을 2개로 늘려서, 앞으로 있을 롤링 업데이트에서 Pod가 여러 개일 때 전환 과정을 관찰할 수 있게 준비해 둡시다. 복제본 수를 변경합니다:
 
-include::partial$tip_vscode_kube_editor.adoc[]
-
 [#edit-deployment-replicas-rolling]
 [.console-input]
 [source, bash]
 ----
 oc edit deployment myboot
 ----
+
+(위 명령어 대신 목적에 따라 oc scale, oc set image 등 간단한 명령어도 있지만, 여기에서는 `oc edit` 명령어를 통해 deployment의 내용을 수정하는 방법을 확인해봅시다)
 
 "replicas"를 찾습니다:
 
@@ -105,6 +175,21 @@ spec:
     matchLabels:
       app: myboot
 ----
+
+TIP: 편집기의 단축키는 아래와 같습니다. +
+- *`i`* : 입력 모드로 전환(커서 앞에서 입력 시작) +
+- 입력모드 전환 후, 방향키로 커서를 이동 및 `백스페이스` 로 문자 삭제 가능 +
+- *`:`* : 커멘드라인 모드로 전환 +
+-(커맨드라인 모드에서) *`w`* : 파일 저장 +
+-(커맨드라인 모드에서) *`q`* : 파일 종료 +
+
+TIP: 아래와 같은 순서로 작업하세요. +
+1. "replicas: 1"에서 숫자 1에 커서를 두고 `i` 키를 눌러 입력모드로 전환하세요. +
+2. `방향키` 와 `백스페이스` 를 이용하여 숫자 "1"을 삭제 후, "2"를 입력하세요. +
+3. `esc` 키를 눌러 입력모드를 종료하세요. +
+4. `:` 키를 눌러 커멘드라인 모드로 전환하세요. +
+5. `wq` 를 입력한 후 `enter` 키를 누르세요.
+
 
 편집기를 저장하고 닫으면 새로운 pod가 생겨납니다:
 
@@ -154,6 +239,20 @@ image 속성을 찾습니다:
         name: myboot
 ----
 
+TIP: 편집기의 단축키는 아래와 같습니다. +
+- *`i`* : 입력 모드로 전환(커서 앞에서 입력 시작) +
+- 입력모드 전환 후, 방향키로 커서를 이동 및 `백스페이스` 로 문자 삭제 가능 +
+- *`:`* : 커멘드라인 모드로 전환 +
+-(커맨드라인 모드에서) *`w`* : 파일 저장 +
+-(커맨드라인 모드에서) *`q`* : 파일 종료 +
+
+TIP: 아래와 같은 순서로 작업하세요. +
+1. "image: quay.io/rhdevelopers/myboot:v1"에서 숫자 1에 커서를 두고 `i` 키를 눌러 입력모드로 전환하세요. +
+2. `방향키` 와 `백스페이스` 를 이용하여 숫자 "1"을 삭제 후, "2"를 입력하세요. +
+3. `esc` 키를 눌러 입력모드를 종료하세요. +
+4. `:` 키를 눌러 커멘드라인 모드로 전환하세요. +
+5. `wq` 를 입력한 후 `enter` 키를 누르세요.
+
 편집기를 저장하고 나면, 새 리비전의 Pod가 뜨는 동안 옛 리비전의 Pod가 아직 남아 있는 __과도기 상태__를 볼 수 있을 것입니다:
 
 [#edit-deployment-v2-get-pod-rolling]
@@ -173,7 +272,7 @@ myboot-d78fb6d58-2fqml    1/1     Running             0          3m29s
 myboot-d78fb6d58-ljkjp    1/1     Terminating         0          8m
 ----
 
-그리고 터미널 2의 출력:
+* *Terminal#2에서 확인*
 
 [.console-output]
 [source,bash]
@@ -183,6 +282,48 @@ Aloha from Spring Boot! 212 on myboot-d78fb6d58-2fqml
 Bonjour from Spring Boot! 0 on myboot-7fbc4b97df-4ntmk
 Bonjour from Spring Boot! 1 on myboot-7fbc4b97df-4ntmk
 ----
+
+[IMPORTANT]
+====
+현재 이 Deployment에는 아직 Liveness/Readiness Probe가 정의되어 있지 않으므로, 롤오버가 진행되는 동안 loop 창에서 다음과 같은 연결 오류가 몇 차례 발생할 수 있습니다:
+
+[.console-output]
+[source,bash]
+----
+Aloha from Spring Boot! 119 on myboot-d78fb6d58-2zp4h
+curl: (7) Failed to connect to 192.168.99.100 port 31528: Connection refused
+----
+
+Readiness Probe가 없으면 쿠버네티스는 컨테이너가 `Running` 상태가 되는 즉시 그 Pod를 Service의 Endpoints에 추가합니다. 하지만 Spring Boot 애플리케이션이 실제로 요청을 받을 준비가 되기까지는 그보다 조금 더 시간이 걸리기 때문에, 그 짧은 틈에 들어온 요청은 실패합니다(이 문제는 xref:live-ready.adoc[Liveness와 Readiness] 장에서 Probe를 추가해 직접 해결해 봅니다).
+
+연결 오류 없이 롤링 업데이트가 되는 것을 확인하시려면 Spring Boot 이미지 대신 Quarkus 이미지를 사용해 보세요.
+
+[#describe-rollback-quarkus-rolling]
+[.console-input]
+[source, bash]
+----
+oc set image deployment/myboot myboot=quay.io/rhdevelopers/quarkus-demo:v1
+----
+
+그러면 오류가 발생하지 않아야 합니다. Quarkus는 그야말로 놀라울 정도로 빠르게 부팅됩니다.
+
+[.console-output]
+[source,bash]
+----
+Aloha from Spring Boot! 62 on myboot-d78fb6d58-smb7h
+Aloha from Spring Boot! 63 on myboot-d78fb6d58-smb7h
+Supersonic Subatomic Java with Quarkus myboot-5cf696848b-tlt6l:1
+Supersonic Subatomic Java with Quarkus myboot-5cf696848b-tlt6l:2
+----
+
+다시 Spring Boot 이미지로 전환하기 위해서는 아래 명령어를 실행하세요.
+
+[.console-input]
+[source, bash]
+----
+oc set image deployment/myboot myboot=quay.io/rhdevelopers/myboot:v2
+----
+====
 
 deployment의 상태를 확인합니다:
 
@@ -249,14 +390,16 @@ Events:
 oc rollout history deployment/myboot
 ----
 
-다음 명령으로 v1로 롤백할 수 있습니다:
+다음 명령으로 v2로 롤백할 수 있습니다:
 
 [#describe-rollback-rolling]
 [.console-input]
 [source, bash]
 ----
-oc rollout undo deployment/myboot --to-revision=1
+oc rollout undo deployment/myboot --to-revision=2
 ----
+
+(만약 '리소스와 제한' 실습에서 생성했던 Deployment를 삭제하고 '롤링 업데이트' 실습에서 새로 만들었다면, v1으로 롤백하세요.)
 
 그러면 Aloha로 롤백됩니다:
 
@@ -268,36 +411,14 @@ Bonjour from Spring Boot! 502 on myboot-7fbc4b97df-qtkzj
 Aloha from Spring Boot! 0 on myboot-d78fb6d58-vnlch
 ----
 
-[IMPORTANT]
-====
-이 Deployment에는 아직 Liveness/Readiness Probe가 정의되어 있지 않으므로, 롤오버가 진행되는 동안 loop 창에서 다음과 같은 연결 오류가 몇 차례 발생할 수 있습니다:
+= 정리
 
-[.console-output]
-[source,bash]
-----
-Aloha from Spring Boot! 119 on myboot-d78fb6d58-2zp4h
-curl: (7) Failed to connect to 192.168.99.100 port 31528: Connection refused
-----
+터미널 1과 2에서 [ctrl+c]를 눌러 실행 중인 명령어를 취소하고, 생성했던 리소스들을 정리합니다.
 
-Readiness Probe가 없으면 쿠버네티스는 컨테이너가 `Running` 상태가 되는 즉시 그 Pod를 Service의 Endpoints에 추가합니다. 하지만 Spring Boot 애플리케이션이 실제로 요청을 받을 준비가 되기까지는 그보다 조금 더 시간이 걸리기 때문에, 그 짧은 틈에 들어온 요청은 실패합니다(이 문제는 xref:live-ready.adoc[Liveness와 Readiness] 장에서 Probe를 추가해 직접 해결해 봅니다).
-
-Spring Boot 이미지 대신 Quarkus 이미지를 사용해 보세요.
-
-[#describe-rollback-quarkus-rolling]
+[#clean-up]
 [.console-input]
-[source, bash]
+[source,bash,subs="+macros,+attributes"]
 ----
-oc set image deployment/myboot myboot=quay.io/rhdevelopers/quarkus-demo:v1
+oc delete deployment myboot
+oc delete service myboot
 ----
-
-그러면 오류가 발생하지 않아야 합니다. Quarkus는 그야말로 놀라울 정도로 빠르게 부팅됩니다.
-
-[.console-output]
-[source,bash]
-----
-Aloha from Spring Boot! 62 on myboot-d78fb6d58-smb7h
-Aloha from Spring Boot! 63 on myboot-d78fb6d58-smb7h
-Supersonic Subatomic Java with Quarkus myboot-5cf696848b-tlt6l:1
-Supersonic Subatomic Java with Quarkus myboot-5cf696848b-tlt6l:2
-----
-====

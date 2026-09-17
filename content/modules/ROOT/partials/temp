@@ -13,3 +13,48 @@ include::partial$new-terminal.adoc[]
 
 :curl-loop-sleep-time: 1
 include::partial$loop.adoc[]
+
+
+===========
+
+확인이 완료되었으면 [ctrl+c]를 통해 명령을 취소합니다.
+
+
+===========
+
+cat <<EOF | oc apply -f -
+
+EOF
+
+===========
+
+* *Terminal#1에서 수행*
+
+
+* *Terminal#2에서 수행*
+
+
+* *Terminal#3에서 수행*
+
+
+while true
+do curl $IP:$PORT
+sleep 1
+done
+
+
+
+
+
+
+
+= 정리
+
+[#clean-up]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+oc delete deployment quarkus-demo-deployment
+oc delete service the-service
+oc delete route the-service
+----

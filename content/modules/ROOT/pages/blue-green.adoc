@@ -117,9 +117,26 @@ EOF
 
 include::partial$new-terminal.adoc[]
 
-:section-k8s: bluegreen
-:service-exposed: myboot
-include::partial$env-curl.adoc[]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+IP=$(oc get service {tmp-service-exposed} -o jsonpath="{.spec.clusterIP}")
+PORT=$(oc get service {tmp-service-exposed} -o jsonpath="{.spec.ports[*].port}")
+----
+
+Service에 curl 요청을 보냅니다:
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+curl $IP:$PORT
+----
+
+[.console-output]
+[source,bash,subs="+macros,+attributes"]
+----
+Aloha from Spring Boot! 1 on myboot-596b476986-vqns6
+----
 
 그리고 loop 스크립트를 실행합니다:
 
@@ -168,6 +185,7 @@ EOF
 ----
 
 Service를 거치지 않고 V2 Pod에 직접 ``exec``로 들어가 curl을 실행해서, 전환하기 전에 새 코드가 제대로 동작하는지 미리 검증해 봅시다:
+(연결할 수 없다는 에러가 뜬다면 `oc get pods` 명령어를 통해 pod가 running 상태인지 확인하세요)
 
 [#exec-v2-blue-green]
 [.console-input]
@@ -180,7 +198,7 @@ oc exec -it $PODNAME -- curl localhost:8080
 [.console-output]
 [source,bash]
 ----
-Jambo from Spring Boot! 1 on myboot-next-66b68c6659-ftcjr
+Bonjour from Spring Boot! 2 on myboot-next-769c58db79-ttzcc
 ----
 
 검증이 끝났으니 이제 실제 전환을 해봅시다. Service의 ``selector``를 ``app=myboot-next``로 바꾸면, 그 즉시 Endpoints가 V2 Pod들로 교체되어 모든 트래픽이 GREEN(V2)으로 전환됩니다. Deployment도, Pod도 다시 만들 필요 없이 Service의 selector 한 줄만 바뀌는 것에 주목하세요. 터미널 2의 loop 출력을 지켜보면, 이 전환이 얼마나 즉각적인지 확인할 수 있습니다:
@@ -197,10 +215,11 @@ oc patch svc/myboot -p '{"spec":{"selector":{"app":"myboot-next"}}}'
 [.console-output]
 [source,bash]
 ----
-Aloha from Spring Boot! 240 on myboot-d78fb6d58-929wn
-Jambo from Spring Boot! 2 on myboot-next-66b68c6659-ftcjr
-Jambo from Spring Boot! 3 on myboot-next-66b68c6659-ftcjr
-Jambo from Spring Boot! 4 on myboot-next-66b68c6659-ftcjr
+Aloha from Spring Boot! 55 on myboot-596b476986-mb99v
+Bonjour from Spring Boot! 3 on myboot-next-769c58db79-ttzcc
+Bonjour from Spring Boot! 4 on myboot-next-769c58db79-ttzcc
+Bonjour from Spring Boot! 5 on myboot-next-769c58db79-ttzcc
+Bonjour from Spring Boot! 6 on myboot-next-769c58db79-ttzcc
 ----
 
 프랑스식(green)보다 하와이식(blue)을 더 선호한다고 판단하여 되돌립니다. Blue/Green 배포의 가장 큰 장점이 바로 이것입니다 — V1 Pod들을 지운 적이 없으므로, 셀렉터를 원래대로 되돌리기만 하면 그 즉시 롤백이 끝납니다:
@@ -214,13 +233,17 @@ Jambo from Spring Boot! 4 on myboot-next-66b68c6659-ftcjr
 oc patch svc/myboot -p '{"spec":{"selector":{"app":"myboot"}}}'
 ----
 
+* *Terminal#2에서 확인*
 [.console-output]
 [source,bash]
 ----
-Jambo from Spring Boot! 17 on myboot-next-66b68c6659-ftcjr
-Aloha from Spring Boot! 257 on myboot-d78fb6d58-vqvlb
-Aloha from Spring Boot! 258 on myboot-d78fb6d58-vqvlb
+Bonjour from Spring Boot! 19 on myboot-next-769c58db79-ttzcc
+Aloha from Spring Boot! 61 on myboot-596b476986-vqns6
+Aloha from Spring Boot! 62 on myboot-596b476986-vqns6
+Aloha from Spring Boot! 56 on myboot-596b476986-mb99v
 ----
+
+확인이 완료되었으면 [ctrl+c]를 통해 명령을 취소합니다.
 
 == 정리
 
