@@ -1,9 +1,35 @@
 = 로그
 include::vars.adoc[]
 
-쿠버네티스/OpenShift 클러스터 전반에서 로그를 수집하고 확인하는 "프로덕션 준비" 방식은 다양합니다. 많은 사람들이 ELK(ElasticSearch, Logstash, Kibana)나 EFK(ElasticSearch, FluentD, Kibana) 계열을 선호합니다.
+쿠버네티스/OpenShift 환경에서는 여러 노드와 Pod에서 생성되는 로그를 개별적으로 확인하는 것뿐만 아니라, **클러스터 전체의 로그를 중앙에서 수집하고 검색할 수 있도록 구성**하는 것이 일반적입니다.
+OpenShift에서는 *Red Hat OpenShift Logging*을 사용하여 애플리케이션, 인프라, 감사(Audit) 로그를 수집하고 원하는 로그 저장소로 전달할 수 있습니다. 최신 OpenShift Logging에서는 **Vector**가 로그 수집기(Collector)로 사용되며, `ClusterLogForwarder`를 통해 어떤 로그를 어디로 전달할지 설정합니다.
+수집한 로그를 클러스터 내부에서 저장하고 검색하려는 경우에는 **LokiStack**을 사용할 수 있으며, OpenShift 웹 콘솔의 Observability 화면에서 로그를 조회할 수도 있습니다. 필요에 따라 Splunk, Elasticsearch, 클라우드 로깅 서비스 등의 외부 로그 시스템으로 전달하는 구성도 가능합니다.
 
-여기서는 개발자가 pod 안에서 실행 중인 애플리케이션의 동작을 이해하는 데 필요한 것들에 초점을 맞춥니다. 컨테이너 환경에서는 애플리케이션에 직접 접속해 로그 파일을 열어 볼 수 없기 때문에, ``oc logs``로 컨테이너의 표준 출력(stdout)을 조회하는 것이 애플리케이션 동작을 확인하는 기본적인 방법입니다.
+여기서는 개발자가 Pod 안에서 실행 중인 애플리케이션의 동작을 확인하는 기본적인 방법에 초점을 맞춥니다.
+컨테이너 환경에서는 애플리케이션 로그를 컨테이너 내부의 특정 파일에만 저장하기보다는, 표준 출력(stdout)과 표준 오류(stderr)로 출력하는 방식​이 일반적으로 사용됩니다. 이렇게 하면 컨테이너가 어느 노드에서 실행되든 Kubernetes/OpenShift가 로그를 일관된 방식으로 수집하고 조회할 수 있습니다.
+`oc logs` 명령을 사용하면 실행 중인 컨테이너가 stdout과 stderr로 출력한 로그를 확인할 수 있습니다. 따라서 애플리케이션이 정상적으로 시작되었는지, 요청을 어떻게 처리하고 있는지, 오류가 발생했는지 등을 빠르게 확인할 수 있습니다.
+
+먼저 새로운 네임스페이스를 먼저 생성합니다. 
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+oc new-project {user}-logs
+----
+
+[.console-output]
+[source,bash,subs="+macros,+attributes"]
+----
+Now using project "{user}-logs" on server "https://172.231.0.1:443".
+
+You can add applications to this project with the 'new-app' command. For example, try:
+
+    oc new-app rails-postgresql-example
+
+to build a new example application in Ruby. Or use kubectl to deploy a simple Kubernetes application:
+
+    kubectl create deployment hello-node --image=registry.k8s.io/e2e-test-images/agnhost:2.43 -- /agnhost serve-hostname
+----
 
 실습에 사용할 Deployment를 하나 배포합니다:
 
@@ -54,6 +80,16 @@ oc get deployment my-deployment -o jsonpath='{.status.replicas}{"\n"}'
 oc scale --replicas=3 deployment/my-deployment
 ----
 
+3개의 pod가 배포되어 동작중인지 확인합니다.
+
+[#logs-scale-replicas]
+[.console-input]
+[source, bash]
+----
+oc get pod
+----
+
+
 [.console-output]
 [source,bash]
 ----
@@ -63,11 +99,18 @@ my-deployment-5dc67997c7-m7z9f   1/1     Running   0          34s
 my-deployment-5dc67997c7-s4jc6   1/1     Running   0          34s
 ----
 
+하나의 pod에서 발생 중인 로그를 확인합니다.
+
 [#logs-log-deployment]
 [.console-input]
 [source, bash]
 ----
-oc logs my-deployment-5dc67997c7-m7z9f
+oc logs <파드이름>
+----
+
+IMPORTANT: <파드이름> 부분은 실제로 조회된 Pod 이름 중 하나로 변경하여 입력하세요.
+
+
 ----
 
 [.console-output]
@@ -89,15 +132,31 @@ oc logs my-deployment-5dc67997c7-m7z9f
 [.console-input]
 [source, bash]
 ----
-oc logs my-deployment-5dc67997c7-m7z9f -f
+oc logs <파드이름> -f
 ----
 
-방금 실행한 ``logs -f``는 아직 아무것도 출력하지 않고 있을 것입니다 — 애플리케이션이 아직 요청을 받은 적이 없기 때문입니다. 다른 터미널을 열어 해당 Pod에 직접 요청을 보내서, 그 로그 창에 새 줄이 나타나는지 확인해 봅시다:
+방금 실행한 ``logs -f``는 새로운 출력을 보내지 않고 멈춰 있을 것입니다 — 애플리케이션이 아직 요청을 받은 적이 없기 때문입니다. 다른 터미널을 열어 해당 Pod에 직접 요청을 보내서, 그 로그 창에 새 줄이 나타나는지 확인해 봅시다:
+
+* *Terminal#2에서 수행*
+새로 생성된 프로젝트로 전환되었는지 다시 한번 확인합니다.
+
+:section-k8s: logs
+:set-namespace: logs
+
+include::partial$new-terminal.adoc[]
+
+파드에서 curl 명령어를 실행해봅니다.
 
 [.console-input]
 [source,bash]
 ----
-oc exec -it my-deployment-5dc67997c7-m7z9f -- /bin/bash
+oc exec -it <파드이름> -- /bin/bash
+----
+IMPORTANT: <파드이름> 부분은 실제로 조회된 Pod 이름 중 하나로 변경하여 입력하세요.
+
+[.console-input]
+[source,bash]
+----
 curl localhost:8080
 ----
 
@@ -106,8 +165,14 @@ curl localhost:8080
 ----
 Aloha from my-deployment-5dc67997c7-m7z9f
 ----
+NOTE: [ctrl+c]를 입력하여 pod 명령어 실행(쉘) 모드를 종료할 수 있습니다.
+
+터미널 1을 다시 확인해보면, 새로운 로그가 1줄 추가된 것을 확인할 수 있습니다. 
+
 
 지금까지는 Pod 이름을 정확히 지정해서 로그를 확인했습니다. 하지만 복제본이 3개나 있는데 매번 어떤 Pod가 요청을 처리할지 어떻게 알 수 있을까요? 이를 확인하기 위해 먼저 ``my-deployment``를 위한 Service를 배포합니다:
+
+* *Terminal#3에서 수행*
 
 [#create-service]
 [.console-input]
@@ -125,11 +190,10 @@ spec:
     - protocol: TCP
       port: 80
       targetPort: 8080
-  type: LoadBalancer
 EOF
 ----
 
-다른 터미널에서 해당 service에 반복해서 curl 요청을 보냅니다:
+해당 service에 반복해서 curl 요청을 보냅니다:
 
 :section-k8s: logs
 :service-exposed: the-service
@@ -140,6 +204,8 @@ include::partial$env-curl.adoc[]
 include::partial$loop.adoc[]
 
 이제 요청이 3개의 Pod에 나뉘어 도착하고 있으므로, 특정 Pod 하나만 지켜봐서는 전체 그림을 볼 수 없습니다. Deployment를 대상으로 `--all-pods` 옵션을 추가하면, 그 Deployment에 속한 모든 Pod의 로그를 한 화면에 모아 볼 수 있습니다. 각 줄 맨 앞에 표시되는 Pod 이름으로 어떤 Pod가 요청을 처리했는지 구분할 수 있습니다:
+
+* *Terminal#1에서 수행*
 
 [#all-pods]
 [.console-input]
@@ -156,22 +222,6 @@ my-deployment-5dc67997c7-m7z9f myapp Aloha from my-deployment-5dc67997c7-m7z9f
 my-deployment-5dc67997c7-s4jc6 myapp Aloha from my-deployment-5dc67997c7-s4jc6
 my-deployment-5dc67997c7-s4jc6 myapp Aloha from my-deployment-5dc67997c7-s4jc6
 ----
-
-로그를 보는 데 자주 쓰이는 다른 도구는 다음과 같습니다:
-
-. https://github.com/wercker/stern[stern]
-. https://github.com/boz/kail[kail]:
-
-[TIP]
-====
-실패한 pod의 로그를 가져오고 싶을 수도 있는 경우에는 ``-p``를 사용하세요.
-
-[.console-input]
-[source,bash]
-----
-oc logs my-deployment-5dc67997c7-s4jc6 -p 
-----
-====
 
 == 정리
 

@@ -16,6 +16,21 @@ include::vars.adoc[]
 oc new-project {user}-myspace
 ----
 
+[.console-output]
+[source,bash,subs="+macros,+attributes"]
+----
+Now using project "{user}-myspace" on server "https://172.231.0.1:443".
+
+You can add applications to this project with the 'new-app' command. For example, try:
+
+    oc new-app rails-postgresql-example
+
+to build a new example application in Ruby. Or use kubectl to deploy a simple Kubernetes application:
+
+    kubectl create deployment hello-node --image=registry.k8s.io/e2e-test-images/agnhost:2.43 -- /agnhost serve-hostname
+----
+
+
 == Pod
 
 먼저 아무런 보호 장치 없이 Pod 하나만 직접 만들어 봅니다. 이렇게 상위 컨트롤러(ReplicaSet이나 Deployment) 없이 만든 Pod를 https://kubernetes.io/docs/concepts/configuration/overview/#naked-pods-vs-replicasets-deployments-and-jobs[네이키드(naked) Pod]라고 부릅니다. 이 실습의 목적은, 이런 Pod가 왜 실무에서 그대로 쓰이지 않는지를 직접 겪어 보는 것입니다:
@@ -283,10 +298,10 @@ oc get pod rs-quarkus-demo-mlnng -o jsonpath='{.metadata.ownerReferences[]}'
 [.console-input]
 [source,bash]
 ----
-oc delete pod rs-quarkus-demo-랜덤문자
+oc delete pod <파드이름>
 ----
 
-IMPORTANT: 명령어의 pod name(rs-quarkus-demo-랜덤문자 부분)은 실제 조회된 pod의 이름 중 하나로 변경해야 합니다. 
+IMPORTANT: 명령어의 <파드이름>은 실제 조회된 pod의 이름 중 하나로 변경해야 합니다. 
 
 그러면 이를 대체할 새 pod가 생겨납니다. 이것이 바로 네이키드 Pod에는 없었던 __자가 치유(self-healing)__ 능력입니다:
 
