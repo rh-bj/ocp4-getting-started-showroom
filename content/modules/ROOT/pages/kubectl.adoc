@@ -36,15 +36,15 @@ kubectl get namespaces
 
 __Pod__는 쿠버네티스에서 배포할 수 있는 가장 작은 단위로, 하나 이상의 컨테이너를 묶어서 같은 네트워크와 스토리지를 공유하며 함께 스케줄되도록 만든 것입니다. 즉, 여러분이 만든 컨테이너 이미지는 항상 Pod라는 껍데기에 담겨서 클러스터에 배포됩니다.
 
-한편 __네임스페이스(Namespace)__는 클러스터 안의 리소스를 논리적으로 나누는 구획입니다(OpenShift에서는 "프로젝트"라고도 부릅니다). 클러스터 운영에 필요한 시스템 컴포넌트들도 결국 Pod로 실행되며, 보통 여러분의 애플리케이션과 섞이지 않도록 별도의 네임스페이스에 들어 있습니다. `--all-namespaces` 옵션을 주면 특정 네임스페이스에 한정하지 않고 클러스터 전체의 Pod를 볼 수 있습니다:
+한편 __네임스페이스(Namespace)__는 클러스터 안의 리소스를 논리적으로 나누는 구획입니다(OpenShift에서는 "프로젝트"라고도 부릅니다). 클러스터 운영에 필요한 시스템 컴포넌트들도 결국 Pod로 실행되며, 보통 여러분의 애플리케이션과 섞이지 않도록 별도의 네임스페이스에 들어 있습니다. 
+`--all-namespaces` 옵션을 주면 특정 네임스페이스에 한정하지 않고 클러스터 전체의 Pod를 볼 수 있지만, 지금 여러분이 권한을 가진 네임스페이스는 `{ocp4_starter_project}` 뿐이므로, 현재 사용 중인 `{ocp4_starter_project}` 네임스페이스에 배포되어 있는 Pod들만 확인해보겠습니다.
 
 [#kubectl-get-pods]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get pods --all-namespaces
-kubectl get pods --all-namespaces --show-labels
-kubectl get pods --all-namespaces -o wide
+kubectl get pods
+kubectl get pods -o wide
 ----
 
 [[deploy-app]]
