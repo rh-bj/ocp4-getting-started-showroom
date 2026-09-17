@@ -5,7 +5,7 @@
 [.console-input]
 [source, bash, subs="+attributes"]
 ----
-kubectl get ns {set-namespace}
+oc get ns {set-namespace}
 ----
 
 응답이 다음과 같다면:
@@ -21,6 +21,6 @@ Error from server (NotFound): namespaces "{set-namespace}" not found
 [.console-input]
 [source, bash, subs="+attributes"]
 ----
-kubectl create ns {set-namespace}
+oc new-project {set-namespace}
 ----
 ====

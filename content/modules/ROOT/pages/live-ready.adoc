@@ -20,7 +20,7 @@ include::partial$set-context.adoc[]
 [.console-input]
 [source, bash]
 ----
-kubectl get all
+oc get all
 ----
 
 [.console-output]
@@ -48,7 +48,7 @@ include::example$myboot-deployment-live-ready.yml[]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/myboot-deployment-live-ready.yml
+oc apply -f apps/kubefiles/myboot-deployment-live-ready.yml
 ----
 
 deployment를 describe합니다:
@@ -84,7 +84,7 @@ Service를 배포합니다:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/myboot-service.yml
+oc apply -f apps/kubefiles/myboot-service.yml
 ----
 
 :section-k8s: liveready
@@ -101,7 +101,7 @@ include::partial$loop.adoc[]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl set image deployment/myboot myboot=quay.io/rhdevelopers/myboot:v2
+oc set image deployment/myboot myboot=quay.io/rhdevelopers/myboot:v2
 ----
 
 그리고 오류 없이 진행되는 롤링 업데이트를 확인하세요:
@@ -126,7 +126,7 @@ Endpoints를 확인해서 어떤 pod가 Service에 속해 있는지 봅니다:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get endpoints myboot -o json | jq '.subsets[].addresses[].ip'
+oc get endpoints myboot -o json | jq '.subsets[].addresses[].ip'
 ----
 
 다음은 readiness probe를 통과한 Pod IP들입니다:
@@ -147,7 +147,7 @@ kubectl get endpoints myboot -o json | jq '.subsets[].addresses[].ip'
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl exec -it myboot-845968c6ff-k5lcb -- /bin/bash
+oc exec -it myboot-845968c6ff-k5lcb -- /bin/bash
 ----
 
 [.console-input]
@@ -174,7 +174,7 @@ myboot-845968c6ff-zsgx2   1/1     Running   0          11m
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get endpoints myboot -o json | jq '.subsets[].addresses[].ip'
+oc get endpoints myboot -o json | jq '.subsets[].addresses[].ip'
 ----
 
 그리고 해당 pod가 Service의 로드밸런서에서 빠진 것을 확인합니다:
@@ -204,7 +204,7 @@ Aloha from Spring Boot! 846 on myboot-845968c6ff-9wshg
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl set image deployment/myboot myboot=quay.io/rhdevelopers/myboot:v3
+oc set image deployment/myboot myboot=quay.io/rhdevelopers/myboot:v3
 ----
 
 롤아웃이 복제본 3개 모두에 걸쳐 완료될 때까지 기다립니다:
@@ -212,7 +212,7 @@ kubectl set image deployment/myboot myboot=quay.io/rhdevelopers/myboot:v3
 [.console-output]
 [source.bash]
 ----
-kubectl get pods -w
+oc get pods -w
 NAME                      READY   STATUS    RESTARTS   AGE
 myboot-56659c9d69-6sglj   1/1     Running   0          2m2s
 myboot-56659c9d69-mdllq   1/1     Running   0          97s
@@ -237,7 +237,7 @@ include::partial$tip_vscode_kube_editor.adoc[]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl edit deployment myboot
+oc edit deployment myboot
 ----
 
 그리고 liveness probe를 변경합니다:
@@ -269,7 +269,7 @@ kubectl edit deployment myboot
 [.console-input]
 [source,bash]
 ----
-kubectl get pods -w
+oc get pods -w
 ----
 
 [.console-output]
@@ -287,7 +287,7 @@ v3 이미지에는 ``/shot``이라는 디버그용 엔드포인트가 있어서,
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl exec -it myboot-558b4f8678-qbrgc -- /bin/bash
+oc exec -it myboot-558b4f8678-qbrgc -- /bin/bash
 ----
 
 [.console-input]
@@ -312,7 +312,7 @@ myboot-558b4f8678-z7f9n   1/1     Running   0          3m44s
 [.console-input]
 [source,bash]
 ----
-kubectl exec -it myboot-558b4f8678-qbrgc -- /bin/bash
+oc exec -it myboot-558b4f8678-qbrgc -- /bin/bash
 ----
 
 [.console-output]
@@ -347,7 +347,7 @@ Jambo from Spring Boot! 176 on myboot-558b4f8678-z7f9n
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl delete deployment myboot
+oc delete deployment myboot
 ----
 
 == Startup Probe
@@ -374,7 +374,7 @@ include::example$myboot-deployment-live-ready-aggressive.yml[]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/myboot-deployment-live-ready-aggressive.yml
+oc apply -f apps/kubefiles/myboot-deployment-live-ready-aggressive.yml
 ----
 
 pod watch에서 볼 수 있듯이, 때로는 성공적으로 부팅된 이후에도(kubelet이 재시작을 예약하기 때문에) pod가 계속 재시작되는데, 이는 SpringBoot의 시작 시간 때문입니다.
@@ -383,7 +383,7 @@ pod watch에서 볼 수 있듯이, 때로는 성공적으로 부팅된 이후에
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl describe pods
+oc describe pods
 ----
 
 [.console-output]
@@ -437,7 +437,7 @@ include::example$myboot-deployment-startup-live-ready.yml[]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/myboot-deployment-startup-live-ready.yml
+oc apply -f apps/kubefiles/myboot-deployment-startup-live-ready.yml
 ----
 
 startup probe는 애플리케이션이 시작되기까지 30초(`5 * 6`)를 기다립니다. 또한 liveness와 readiness 검사의 지연 시간이 0으로 줄어든 것도 확인하세요.
@@ -445,7 +445,7 @@ startup probe는 애플리케이션이 시작되기까지 30초(`5 * 6`)를 기�
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get pods -w
+oc get pods -w
 ----
 
 [.console-output]
@@ -470,7 +470,7 @@ pod 중 하나를 골라 ``exec``로 접속해서 총을 쏴 봅니다:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl exec -it myboot-558b4f8678-qbrgc -- /bin/bash
+oc exec -it myboot-558b4f8678-qbrgc -- /bin/bash
 ----
 
 [.console-input]
@@ -487,7 +487,7 @@ pod를 describe해서 probe 통계를 확인합니다:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl describe pod myboot-579cc5cc47-2bk5p
+oc describe pod myboot-579cc5cc47-2bk5p
 ----
 
 [.console-output]
@@ -511,6 +511,6 @@ Mounts:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl delete deployment myboot
-kubectl delete svc myboot
+oc delete deployment myboot
+oc delete svc myboot
 ----

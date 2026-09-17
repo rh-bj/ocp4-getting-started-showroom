@@ -17,7 +17,7 @@ include::partial$set-context.adoc[]
 [.console-input]
 [source, bash]
 ----
-kubectl get all
+oc get all
 ----
 
 [.console-output]
@@ -32,7 +32,7 @@ No resources found in myspace namespace.
 [.console-input]
 [source, bash]
 ----
-kubectl apply -f apps/kubefiles/myboot-deployment-resources-limits.yml
+oc apply -f apps/kubefiles/myboot-deployment-resources-limits.yml
 ----
 
 복제본을 2개로 스케일합니다:
@@ -41,7 +41,7 @@ kubectl apply -f apps/kubefiles/myboot-deployment-resources-limits.yml
 [.console-input]
 [source, bash]
 ----
-kubectl scale deployment/myboot --replicas=2
+oc scale deployment/myboot --replicas=2
 ----
 
 지켜보면서 ``show-labels``를 사용합니다:
@@ -50,7 +50,7 @@ kubectl scale deployment/myboot --replicas=2
 [.console-input]
 [source, bash]
 ----
-kubectl get pods -w --show-labels
+oc get pods -w --show-labels
 ----
 
 이제 이 V1(Blue)을 가리키는 Service를 배포합니다. 이 Service의 셀렉터는 ``app=myboot``로, 지금은 V1 Pod들만 가리키고 있습니다:
@@ -59,7 +59,7 @@ kubectl get pods -w --show-labels
 [.console-input]
 [source, bash]
 ----
-kubectl apply -f apps/kubefiles/myboot-service.yml
+oc apply -f apps/kubefiles/myboot-service.yml
 ----
 
 :section-k8s: bluegreen
@@ -76,7 +76,7 @@ include::partial$loop.adoc[]
 [.console-input]
 [source, bash]
 ----
-kubectl apply -f apps/kubefiles/myboot-deployment-resources-limits-v2.yml
+oc apply -f apps/kubefiles/myboot-deployment-resources-limits-v2.yml
 ----
 
 Service를 거치지 않고 V2 Pod에 직접 ``exec``로 들어가 curl을 실행해서, 전환하기 전에 새 코드가 제대로 동작하는지 미리 검증해 봅시다:
@@ -85,8 +85,8 @@ Service를 거치지 않고 V2 Pod에 직접 ``exec``로 들어가 curl을 실�
 [.console-input]
 [source, bash]
 ----
-PODNAME=$(kubectl get pod -l app=myboot-next -o name)
-kubectl exec -it $PODNAME -- curl localhost:8080
+PODNAME=$(oc get pod -l app=myboot-next -o name)
+oc exec -it $PODNAME -- curl localhost:8080
 ----
 
 [.console-output]
@@ -101,7 +101,7 @@ Jambo from Spring Boot! 1 on myboot-next-66b68c6659-ftcjr
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl patch svc/myboot -p '{"spec":{"selector":{"app":"myboot-next"}}}'
+oc patch svc/myboot -p '{"spec":{"selector":{"app":"myboot-next"}}}'
 ----
 
 [.console-output]
@@ -119,7 +119,7 @@ Jambo from Spring Boot! 4 on myboot-next-66b68c6659-ftcjr
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl patch svc/myboot -p '{"spec":{"selector":{"app":"myboot"}}}'
+oc patch svc/myboot -p '{"spec":{"selector":{"app":"myboot"}}}'
 ----
 
 [.console-output]
@@ -136,7 +136,7 @@ Aloha from Spring Boot! 258 on myboot-d78fb6d58-vqvlb
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl delete service myboot
-kubectl delete deployment myboot
-kubectl delete deployment myboot-next
+oc delete service myboot
+oc delete deployment myboot
+oc delete deployment myboot-next
 ----

@@ -4,7 +4,7 @@
 *** xref:installation.adoc#start-kubernetes[환경 확인하기]
 
 * 2. 입문
-** xref:kubectl.adoc[kubectl]
+** xref:kubectl.adoc[oc]
 ** xref:pod-rs-deployment.adoc[Pod, ReplicaSet, Deployment]
 ** xref:service.adoc[Service]
 ** xref:logs.adoc[로그]

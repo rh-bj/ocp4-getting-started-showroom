@@ -14,7 +14,7 @@
 [.console-input]
 [source, bash, subs="+attributes"]
 ----
-kubectl get ns {set-namespace}
+oc get ns {set-namespace}
 ----
 
 응답이 다음과 같다면:
@@ -30,7 +30,7 @@ Error from server (NotFound): namespaces "{set-namespace}" not found
 [.console-input]
 [source, bash, subs="+attributes"]
 ----
-kubectl create ns {set-namespace}
+oc new-project {set-namespace}
 ----
 ====
 
@@ -42,7 +42,7 @@ include::partial$set-context.adoc[]
 [.console-input]
 [source, bash]
 ----
-kubectl get all
+oc get all
 ----
 
 [.console-output]
@@ -57,7 +57,7 @@ No resources found in myspace namespace.
 [.console-input]
 [source, bash]
 ----
-kubectl apply -f apps/kubefiles/myboot-deployment.yml
+oc apply -f apps/kubefiles/myboot-deployment.yml
 ----
 
 pod를 describe해서 Limits/Requests 항목이 어떻게 표시되는지 확인합니다:
@@ -140,7 +140,7 @@ Events:
 [.console-input]
 [source, bash]
 ----
-kubectl delete deployment myboot
+oc delete deployment myboot
 ----
 
 일부러 과도하게 큰 CPU를 요청하도록 resource request를 지정해서 새 deployment를 생성합니다. 클러스터의 어떤 노드도 이만큼의 여유 CPU를 갖고 있지 않아서 Pod가 스케줄되지 못하는 상황을 재현하기 위한 것입니다:
@@ -149,7 +149,7 @@ kubectl delete deployment myboot
 [.console-input]
 [source, bash]
 ----
-kubectl apply -f apps/kubefiles/myboot-deployment-resources.yml
+oc apply -f apps/kubefiles/myboot-deployment-resources.yml
 ----
 
 그리고 Pod의 상태를 확인합니다:
@@ -158,7 +158,7 @@ kubectl apply -f apps/kubefiles/myboot-deployment-resources.yml
 [.console-input]
 [source, bash]
 ----
-kubectl get pods
+oc get pods
 ----
 
 [.console-output]
@@ -174,7 +174,7 @@ myboot-7b7d754c86-kjwlr   0/1     Pending   0          19s
 [.console-input]
 [source, bash]
 ----
-kubectl get events --sort-by=.metadata.creationTimestamp
+oc get events --sort-by=.metadata.creationTimestamp
 ----
 
 [.console-output]
@@ -186,7 +186,7 @@ kubectl get events --sort-by=.metadata.creationTimestamp
 
 pod 스펙의 "resource requests"는 최소 하나의 워커 노드가 N개의 코어와 X만큼의 메모리를 사용 가능해야 함을 요구합니다. 이 조건을 만족하는 워커 노드가 없다면 "PENDING" 상태와 함께 이벤트 목록에 해당 내용이 표시됩니다.
 
-pod에 ``kubectl describe``를 실행해서 실패에 대한 더 자세한 정보를 확인할 수도 있습니다.
+pod에 ``oc describe``를 실행해서 실패에 대한 더 자세한 정보를 확인할 수도 있습니다.
 
 :section-k8s: resource-limit
 :label-describe: app=myboot
@@ -198,7 +198,7 @@ include::partial$describe.adoc[]
 [.console-input]
 [source, bash]
 ----
-kubectl replace -f apps/kubefiles/myboot-deployment-resources-limits.yml
+oc replace -f apps/kubefiles/myboot-deployment-resources-limits.yml
 ----
 
 위 명령은 Deployment 템플릿을 교체하고 Pod에 컨테이너 제한을 지정하도록 지시합니다.
@@ -214,7 +214,7 @@ service를 배포합니다:
 [.console-input]
 [source, bash]
 ----
-kubectl apply -f apps/kubefiles/myboot-service.yml
+oc apply -f apps/kubefiles/myboot-service.yml
 ----
 
 그리고 Pod를 지켜봅니다:
@@ -247,8 +247,8 @@ NOTE: 보고된 메모리 값과 resource limit에 설정한 값을 비교해 �
 [.console-input]
 [source, bash]
 ----
-PODNAME=$(kubectl get pod -l app=myboot -o name)
-kubectl get $PODNAME -o jsonpath='{.spec.containers[*].resources}'
+PODNAME=$(oc get pod -l app=myboot -o name)
+oc get $PODNAME -o jsonpath='{.spec.containers[*].resources}'
 ----
 
 [.console-output]
@@ -310,7 +310,7 @@ include::partial$describe.adoc[]
 [.console-input]
 [source, bash]
 ----
- kubectl get $PODNAME -o jsonpath='{.status.containerStatuses[0].lastState.terminated'}
+ oc get $PODNAME -o jsonpath='{.status.containerStatuses[0].lastState.terminated'}
 ----
 
 [.console-output]
@@ -325,7 +325,7 @@ include::partial$describe.adoc[]
 }
 ----
 
-``kubectl get pods -w``의 STATUS 열에도 OOMKilled가 표시되는 것을 볼 수 있습니다:
+``oc get pods -w``의 STATUS 열에도 OOMKilled가 표시되는 것을 볼 수 있습니다:
 
 [.console-output]
 [source,bash]

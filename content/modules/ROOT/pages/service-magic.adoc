@@ -8,8 +8,7 @@
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl create namespace {user}-funstuff
-kubectl config set-context --current --namespace={user}-funstuff
+oc new-project {user}-funstuff
 ----
 
 먼저 서로 다른 언어로 작성된 애플리케이션 세 개(mypython, mygo, mynode)를 배포합니다. 각각 `app=mypython`, `app=mygo`, ``app=mynode``라는 서로 다른 레이블을 가지고 있으며, 아직은 어떤 것도 ``inservice=mypods``라는 레이블은 가지고 있지 않다는 점에 주목하세요 — 이것이 잠시 후 만들 Service의 셀렉터입니다.
@@ -20,7 +19,7 @@ kubectl config set-context --current --namespace={user}-funstuff
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-cat <<EOF | kubectl apply -f -
+cat <<EOF | oc apply -f -
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -49,7 +48,7 @@ EOF
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-cat <<EOF | kubectl apply -f -
+cat <<EOF | oc apply -f -
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -78,7 +77,7 @@ EOF
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-cat <<EOF | kubectl apply -f -
+cat <<EOF | oc apply -f -
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -107,7 +106,7 @@ EOF
 [.console-input]
 [source, bash]
 ----
-kubectl get pods -w --show-labels
+oc get pods -w --show-labels
 ----
 
 [.console-output]
@@ -125,7 +124,7 @@ mypython-deployment-6874f84d85-2kpjl   1/1     Running   0          3m53s   app=
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-cat <<EOF | kubectl apply -f -
+cat <<EOF | oc apply -f -
 apiVersion: v1
 kind: Service
 metadata:
@@ -148,7 +147,7 @@ Service를 describe해서 `Endpoints` 항목이 어떻게 표시되는지 확인
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl describe service my-service
+oc describe service my-service
 ----
 
 Service를 만들 때마다 쿠버네티스는 __Endpoints__라는 객체를 자동으로 함께 관리합니다. Endpoints는 그 Service의 셀렉터와 일치하는 Pod들의 IP:Port 목록으로, 실제 트래픽이 전달될 대상 목록입니다. Service의 셀렉터에 맞는 Pod가 하나도 없으니, Endpoints도 비어 있을 것입니다:
@@ -157,7 +156,7 @@ Service를 만들 때마다 쿠버네티스는 __Endpoints__라는 객체를 자
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get endpoints
+oc get endpoints
 ----
 
 [.console-output]
@@ -173,7 +172,7 @@ my-service   <none>      2m6s
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get endpoints my-service -o jsonpath='{.subsets[].addresses[*].ip}{"\n"}'
+oc get endpoints my-service -o jsonpath='{.subsets[].addresses[*].ip}{"\n"}'
 ----
 
 Endpoints가 비어 있는데도 실제로 요청을 보내면 어떻게 되는지 직접 확인해 봅시다. service에 접근하기 위해 ``IP``와 `PORT` 환경 변수를 초기화합니다:
@@ -201,7 +200,7 @@ curl: (7) Failed to connect to 35.224.233.213 port 8000: Connection refused
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl label pod -l app=mypython inservice=mypods
+oc label pod -l app=mypython inservice=mypods
 ----
 
 [.console-output]
@@ -219,7 +218,7 @@ Python Hello on mypython-deployment-6874f84d85-2kpjl
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl label pod -l app=mynode inservice=mypods
+oc label pod -l app=mynode inservice=mypods
 ----
 
 [.console-output]
@@ -240,7 +239,7 @@ Python Hello on mypython-deployment-6874f84d85-2kpjl
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl label pod -l app=mygo inservice=mypods
+oc label pod -l app=mygo inservice=mypods
 ----
 
 [.console-output]
@@ -259,7 +258,7 @@ Python Hello on mypython-deployment-6874f84d85-2kpjl
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get endpoints my-service -o jsonpath='{.subsets[].addresses[*].ip}{"\n"}'
+oc get endpoints my-service -o jsonpath='{.subsets[].addresses[*].ip}{"\n"}'
 ----
 
 [.console-output]
@@ -274,7 +273,7 @@ Pod IP를 확인해서 방금 본 Endpoints 목록의 IP들과 실제로 일치�
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get pods -o wide
+oc get pods -o wide
 ----
 
 마지막으로, Pod 자체를 지우지 않고도 Service에서 뺄 수 있다는 것을 보여드리겠습니다. 레이블 이름 뒤에 ``-``를 붙이면 그 레이블만 제거됩니다. `mypython` Pod는 계속 실행되지만, 더 이상 Service의 셀렉터와 일치하지 않으므로 Endpoints 목록에서는 빠지게 됩니다:
@@ -283,14 +282,14 @@ kubectl get pods -o wide
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl label pod -l app=mypython inservice-
+oc label pod -l app=mypython inservice-
 ----
 
 [#get-endpoints3]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get endpoints my-service -o jsonpath='{.subsets[].addresses[*].ip}{"\n"}'
+oc get endpoints my-service -o jsonpath='{.subsets[].addresses[*].ip}{"\n"}'
 ----
 
 [.console-output]
@@ -307,5 +306,5 @@ kubectl get endpoints my-service -o jsonpath='{.subsets[].addresses[*].ip}{"\n"}
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl delete namespace {user}-funstuff
+oc delete project {user}-funstuff
 ----

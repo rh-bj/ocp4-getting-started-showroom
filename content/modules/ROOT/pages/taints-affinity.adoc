@@ -26,7 +26,7 @@ Toleration은 Pod 정의에 적용되며, taint에 대한 예외를 제공합니
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl describe nodes | egrep "Name:|Taints:"
+oc describe nodes | egrep "Name:|Taints:"
 ----
 
 [.console-output]
@@ -54,7 +54,7 @@ Taints:             <none>
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl taint nodes --all=true color=blue:NoSchedule
+oc taint nodes --all=true color=blue:NoSchedule
 ----
 
 [.console-output]
@@ -83,7 +83,7 @@ color=blue는 taint를 식별하기 위한 key=value 쌍일 뿐이고, NoSchedul
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/myboot-deployment.yml
+oc apply -f apps/kubefiles/myboot-deployment.yml
 ----
 --
 ====
@@ -143,7 +143,7 @@ myboot-7cbfbd9b89-hqx6h   0/1     #ContainerCreating#   20m   #devnation-m02#
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl describe nodes | egrep "Name:|Taints:"
+oc describe nodes | egrep "Name:|Taints:"
 ----
 
 [.console-output]
@@ -169,7 +169,7 @@ Taints:             color=blue:NoSchedule
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl taint nodes --all=true color=blue:NoSchedule --overwrite
+oc taint nodes --all=true color=blue:NoSchedule --overwrite
 ----
 
 [TIP]
@@ -177,7 +177,7 @@ kubectl taint nodes --all=true color=blue:NoSchedule --overwrite
 모든 노드에 taint를 설정하는 것은 다소 투박한 방법입니다. 원한다면, taint가 제거되었던 노드에만 다시 설정해서 조금 더 깔끔하게 같은 효과를 낼 수 있습니다. 예를 들면:
 
 ----
-kubectl taint node ip-10-0-140-186.eu-central-1.compute.internal color=blue:NoSchedule
+oc taint node ip-10-0-140-186.eu-central-1.compute.internal color=blue:NoSchedule
 ----
 ====
 
@@ -206,7 +206,7 @@ myboot deployment를 삭제하고 노드에 taint를 다시 추가합니다:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl delete -f apps/kubefiles/myboot-deployment.yml
+oc delete -f apps/kubefiles/myboot-deployment.yml
 ----
 
 == Toleration
@@ -234,7 +234,7 @@ spec:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/myboot-toleration.yaml
+oc apply -f apps/kubefiles/myboot-toleration.yaml
 ----
 --
 ====
@@ -262,7 +262,7 @@ myboot-84b457458b-mbf9r   1/1     #Running#   3m18s   devnation-m02
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl delete -f apps/kubefiles/myboot-toleration.yaml
+oc delete -f apps/kubefiles/myboot-toleration.yaml
 ----
 
 == `NoExecution` Taint
@@ -282,7 +282,7 @@ kubectl delete -f apps/kubefiles/myboot-toleration.yaml
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl taint nodes --all=true color=blue:NoSchedule-
+oc taint nodes --all=true color=blue:NoSchedule-
 ----
 --
 ====
@@ -298,7 +298,7 @@ kubectl taint nodes --all=true color=blue:NoSchedule-
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/myboot-deployment.yml
+oc apply -f apps/kubefiles/myboot-deployment.yml
 ----
 --
 ====
@@ -346,7 +346,7 @@ include::partial$find_node_for_pod.adoc[]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl taint node pass:[${NODE}] color=blue:NoExecute
+oc taint node pass:[${NODE}] color=blue:NoExecute
 ----
 --
 ====
@@ -385,7 +385,7 @@ myboot-7cbfbd9b89-wpddg   1/1     #Terminating#         65m   devnation-m02
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl delete -f apps/kubefiles/myboot-deployment.yml
+oc delete -f apps/kubefiles/myboot-deployment.yml
 ----
 --
 ====
@@ -400,7 +400,7 @@ kubectl delete -f apps/kubefiles/myboot-deployment.yml
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl taint node pass:[${NODE}] color=blue:NoExecute-
+oc taint node pass:[${NODE}] color=blue:NoExecute-
 ----
 --
 ====
@@ -451,7 +451,7 @@ spec:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/myboot-node-affinity.yml
+oc apply -f apps/kubefiles/myboot-node-affinity.yml
 ----
 --
 ====
@@ -516,7 +516,7 @@ include::partial$find_node_for_pod.adoc[]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl label nodes pass:[${NODE}] color-
+oc label nodes pass:[${NODE}] color-
 ----
 --
 ====
@@ -577,7 +577,7 @@ spec:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl delete -f apps/kubefiles/myboot-node-affinity.yml
+oc delete -f apps/kubefiles/myboot-node-affinity.yml
 ----
 
 === Pod Affinity/Anti-Affinity
@@ -615,7 +615,7 @@ spec:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/myboot-pod-affinity.yml
+oc apply -f apps/kubefiles/myboot-pod-affinity.yml
 ----
 
 [.console-output]
@@ -639,7 +639,7 @@ myboot2-7c5f46cbc9-hwm2v  0/1    Pending  5h38m  <none>
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/myboot-deployment.yml
+oc apply -f apps/kubefiles/myboot-deployment.yml
 ----
 --
 ====
@@ -721,7 +721,7 @@ spec:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/myboot-pod-antiaffinity.yaml
+oc apply -f apps/kubefiles/myboot-pod-antiaffinity.yaml
 ----
 --
 ====
@@ -756,9 +756,9 @@ myboot3-6f95c866f6-7kvdw  0/1    ContainerCreating  6s     #devnation#
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl delete -f apps/kubefiles/myboot-pod-affinity.yml
-kubectl delete -f apps/kubefiles/myboot-pod-antiaffinity.yaml
-kubectl delete -f apps/kubefiles/myboot-deployment.yml
+oc delete -f apps/kubefiles/myboot-pod-affinity.yml
+oc delete -f apps/kubefiles/myboot-pod-antiaffinity.yaml
+oc delete -f apps/kubefiles/myboot-deployment.yml
 ----
 --
 ====

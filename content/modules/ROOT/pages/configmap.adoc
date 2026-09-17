@@ -34,7 +34,7 @@ MyRESTController.java에는 환경을 참조하는 작은 코드 조각이 포�
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/myboot-deployment.yml
+oc apply -f apps/kubefiles/myboot-deployment.yml
 ----
 
 `myboot` Service를 배포합니다:
@@ -43,7 +43,7 @@ kubectl apply -f apps/kubefiles/myboot-deployment.yml
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/myboot-service.yml
+oc apply -f apps/kubefiles/myboot-service.yml
 ----
 
 그리고 pod의 상태를 지켜봅니다:
@@ -80,7 +80,7 @@ love=Default
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl set env deployment/myboot GREETING="namaste" \
+oc set env deployment/myboot GREETING="namaste" \
   LOVE="Aloha" \
   DBCONN="jdbc:sqlserver://45.91.12.123:1443;user=MyUserName;password=*****;"
 ----
@@ -143,7 +143,7 @@ include::partial$describe-deployment.adoc[]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl set env deployment/myboot GREETING- \
+oc set env deployment/myboot GREETING- \
   LOVE- \
   DBCONN-
 ----
@@ -175,16 +175,16 @@ love=Default
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl create cm my-config --from-env-file=apps/config/some.properties
+oc create cm my-config --from-env-file=apps/config/some.properties
 ----
 
 [#get-configmap-configmaps]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get cm
-kubectl get cm my-config
-kubectl get cm my-config -o json
+oc get cm
+oc get cm my-config
+oc get cm my-config -o json
 ----
 
 [.console-output]
@@ -205,7 +205,7 @@ kubectl get cm my-config -o json
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl describe cm my-config
+oc describe cm my-config
 ----
 
 [.console-output]
@@ -227,16 +227,16 @@ Amour
 Events:  <none>
 ----
 
-.리소스를 확인할 때 `kubectl edit` 사용하기
+.리소스를 확인할 때 `oc edit` 사용하기
 ****
-큰 파일의 경우 클러스터의 리소스를 확인할 때 ``kubectl edit``을 사용하는 편이 더 편리할 수 있습니다. 여기서는 다음 명령을 실행해서(변경 사항은 저장하지 말고 취소하세요!) config map을 확인할 수 있습니다:
+큰 파일의 경우 클러스터의 리소스를 확인할 때 ``oc edit``을 사용하는 편이 더 편리할 수 있습니다. 여기서는 다음 명령을 실행해서(변경 사항은 저장하지 말고 취소하세요!) config map을 확인할 수 있습니다:
 
 include::partial$tip_vscode_kube_editor.adoc[]
 
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl edit cm my-config
+oc edit cm my-config
 ----
 ****
 
@@ -246,7 +246,7 @@ kubectl edit cm my-config
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/myboot-deployment-configuration.yml
+oc apply -f apps/kubefiles/myboot-deployment-configuration.yml
 ----
 
 그리고 configure 엔드포인트를 확인합니다:
@@ -274,9 +274,9 @@ love=Amour
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl delete cm my-config
-kubectl create cm my-config --from-env-file=apps/config/other.properties
-kubectl delete pod -l app=myboot --wait=false
+oc delete cm my-config
+oc create cm my-config --from-env-file=apps/config/other.properties
+oc delete pod -l app=myboot --wait=false
 ----
 
 [#get-config5-configmaps]
@@ -306,7 +306,7 @@ https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl delete deployment myboot
-kubectl delete cm my-config
-kubectl delete service myboot
+oc delete deployment myboot
+oc delete cm my-config
+oc delete service myboot
 ----

@@ -70,7 +70,7 @@ include::example$myboot-pod-volume.yml[]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/myboot-pod-volume.yml
+oc apply -f apps/kubefiles/myboot-pod-volume.yml
 ----
 
 그러면 watch 창에서 다음과 비슷한 내용을 볼 수 있습니다.
@@ -94,7 +94,7 @@ pod가 실행 중이면, 컨테이너에 exec로 접속해 봅시다:
 [.console-input]
 [source,bash]
 ----
-kubectl exec -ti myboot-demo -- /bin/bash
+oc exec -ti myboot-demo -- /bin/bash
 ----
 
 컨테이너에 ``exec``로 접속했으면, 다음 명령을 실행합니다:
@@ -157,7 +157,7 @@ exit
 [.console-input]
 [source,bash]
 ----
-kubectl delete pod myboot-demo
+oc delete pod myboot-demo
 ----
 
 [IMPORTANT]
@@ -170,7 +170,7 @@ kubectl delete pod myboot-demo
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/myboot-pod-volume.yml
+oc apply -f apps/kubefiles/myboot-pod-volume.yml
 ----
 
 그리고 `Running` 상태가 되면 pod에 ``exec``로 접속합니다:
@@ -178,7 +178,7 @@ kubectl apply -f apps/kubefiles/myboot-pod-volume.yml
 [.console-input]
 [source,bash]
 ----
-kubectl exec -ti myboot-demo -- /bin/bash
+oc exec -ti myboot-demo -- /bin/bash
 ----
 
 [tabs]
@@ -219,7 +219,7 @@ exit
 [.console-input]
 [source,bash]
 ----
-kubectl delete pod myboot-demo
+oc delete pod myboot-demo
 ----
 
 ==== Pod 안에서 EmptyDir 공유하기
@@ -248,7 +248,7 @@ include::example$myboot-pods-volume.yml[]
 [.console-input]
 [source,bash]
 ----
-kubectl apply -f apps/kubefiles/myboot-pods-volume.yml
+oc apply -f apps/kubefiles/myboot-pods-volume.yml
 ----
 
 그러면 pod watch에서 다음을 볼 수 있습니다.
@@ -282,7 +282,7 @@ include::partial$open-terminal-in-editor-inset.adoc[]
 [.console-input]
 [source,bash]
 ----
-kubectl exec -it myboot-demo -c myboot-demo-2 -- bash 
+oc exec -it myboot-demo -c myboot-demo-2 -- bash 
 ----
 
 그런 다음 pod의 `myboot-demo-2` 컨테이너 안에서 다음 명령을 실행합니다:
@@ -315,7 +315,7 @@ cat: /tmp/demo/greeting.txt: No such file or directory
 [.console-input]
 [source,bash]
 ----
-kubectl exec -ti myboot-demo -c myboot-demo-1 -- /bin/bash
+oc exec -ti myboot-demo -c myboot-demo-1 -- /bin/bash
 ----
 
 그리고 `/tmp/demo` 디렉터리에 콘텐츠를 생성합니다.
@@ -373,7 +373,7 @@ exit
 [.console-input]
 [source,bash]
 ----
-kubectl describe pod myboot-demo
+oc describe pod myboot-demo
 ----
 
 [.console-output]
@@ -414,7 +414,7 @@ include::example$myboot-pod-volume-hostpath.yaml[]
 [.console-input]
 [source,bash]
 ----
-kubectl apply -f apps/kubefiles/myboot-pod-volume-hostpath.yaml
+oc apply -f apps/kubefiles/myboot-pod-volume-hostpath.yaml
 ----
 
 이제 Pod를 describe해 보면, volumes 섹션에서 다음을 볼 수 있습니다:
@@ -422,7 +422,7 @@ kubectl apply -f apps/kubefiles/myboot-pod-volume-hostpath.yaml
 [.console-input]
 [source,bash]
 ----
-kubectl describe pod myboot-demo
+oc describe pod myboot-demo
 ----
 
 [.console-output]
@@ -553,9 +553,9 @@ spec:
 [.console-input]
 [source,bash]
 ----
-kubectl apply -f apps/kubefiles/demo-persistent-volume-hostpath.yaml 
+oc apply -f apps/kubefiles/demo-persistent-volume-hostpath.yaml 
 
-kubectl get pv -w
+oc get pv -w
 ----
 
 [.console-output]
@@ -610,9 +610,9 @@ spec:
 [.console-input]
 [source,bash]
 ----
-kubectl apply -f apps/kubefiles/myboot-persistent-volume-claim.yaml
+oc apply -f apps/kubefiles/myboot-persistent-volume-claim.yaml
 
-kubectl get pvc -w
+oc get pvc -w
 ----
 
 [.console-output]
@@ -653,9 +653,9 @@ spec:
 [.console-input]
 [source,bash]
 ----
-kubectl apply -f apps/kubefiles/myboot-pod-volume-pvc.yaml
+oc apply -f apps/kubefiles/myboot-pod-volume-pvc.yaml
 
-kubectl describe pod myboot-demo
+oc describe pod myboot-demo
 ----
 
 [.console-output]
@@ -702,7 +702,7 @@ include::partial$terminal-cleanup.adoc[tags=**;!*;term-exec;term3-ssh]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get pvc
+oc get pvc
 ----
 
 결과:
@@ -719,8 +719,8 @@ pod가 삭제되었더라도 PVC(그리고 PV)는 여전히 남아 있으며, �
 [.console-input]
 [source,bash]
 ----
-kubectl delete -f apps/kubefiles/myboot-persistent-volume-claim.yaml
-kubectl delete -f apps/kubefiles/demo-persistent-volume-hostpath.yaml
+oc delete -f apps/kubefiles/myboot-persistent-volume-claim.yaml
+oc delete -f apps/kubefiles/demo-persistent-volume-hostpath.yaml
 ----
 
 == 정적 vs 동적 프로비저닝
@@ -744,7 +744,7 @@ PVC가 생성되고 나면, 스토리지 장치와 PV가 자동으로 만들어�
 [.console-input]
 [source,bash]
 ----
-kubectl get sc
+oc get sc
 ----
 
 [.console-output]
@@ -781,9 +781,9 @@ image::pv-static-vs-dynamic.png[]
 [.console-input]
 [source,bash]
 ----
-kubectl apply -f apps/kubefiles/demo-dynamic-persistent.yaml
+oc apply -f apps/kubefiles/demo-dynamic-persistent.yaml
 
-kubectl get pvc
+oc get pvc
 ----
 
 [.console-output]
@@ -798,7 +798,7 @@ __PVC__가 __Pending__ STATUS인 것에 주목하세요. 우리가 만들고 있
 [.console-input]
 [source,bash]
 ----
-kubectl apply -f apps/kubefiles/myboot-pod-volume-pvc.yaml
+oc apply -f apps/kubefiles/myboot-pod-volume-pvc.yaml
 ----
 
 [tabs]
@@ -820,7 +820,7 @@ pod가 __Running__ 상태가 되면, __PVC__와 __PV__의 매개변수를 확인
 [.console-input]
 [source,bash]
 ----
-kubectl get pvc
+oc get pvc
 ----
 
 [.console-output]
@@ -838,7 +838,7 @@ myboot-volumeclaim   Bound    pvc-6de4f27e-bd40-4b58-bb46-91eb08ca5bd7   1Gi    
 [.console-input]
 [source,bash]
 ----
-kubectl get pv
+oc get pv
 ----
 
 [.console-output]
@@ -855,8 +855,8 @@ __CLAIM__ 필드가 __PV__ 생성을 담당한 __PVC__를 가리키는 것에 �
 [.console-input]
 [source,bash]
 ----
-kubectl delete -f apps/kubefiles/myboot-pod-volume-pvc.yaml
-kubectl delete -f apps/kubefiles/demo-dynamic-persistent.yaml
+oc delete -f apps/kubefiles/myboot-pod-volume-pvc.yaml
+oc delete -f apps/kubefiles/demo-dynamic-persistent.yaml
 ----
 
 == 분산 파일 시스템

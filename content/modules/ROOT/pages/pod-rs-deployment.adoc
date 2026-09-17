@@ -12,8 +12,7 @@
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl create namespace {user}-myspace
-kubectl config set-context --current --namespace={user}-myspace
+oc new-project {user}-myspace
 ----
 
 == Pod
@@ -24,7 +23,7 @@ kubectl config set-context --current --namespace={user}-myspace
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-cat <<EOF | kubectl apply -f -
+cat <<EOF | oc apply -f -
 apiVersion: v1
 kind: Pod
 metadata:
@@ -45,7 +44,7 @@ pod의 라이프사이클을 지켜봅니다:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get pods -w
+oc get pods -w
 ----
 
 [.console-output]
@@ -70,7 +69,7 @@ Pod 안의 애플리케이션을 확인합니다:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl exec -it quarkus-demo -- /bin/sh
+oc exec -it quarkus-demo -- /bin/sh
 ----
 
 다음 명령을 실행합니다.
@@ -96,14 +95,14 @@ exit
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl delete pod quarkus-demo
+oc delete pod quarkus-demo
 ----
 
 [#watch-all-naked-pod]
 [.console-input]
 [source,bash]
 ----
-kubectl get pods -w
+oc get pods -w
 ----
 
 [.console-output]
@@ -125,7 +124,7 @@ No resources found in myspace namespace.
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-cat <<EOF | kubectl apply -f -
+cat <<EOF | oc apply -f -
 apiVersion: apps/v1
 kind: ReplicaSet
 metadata:
@@ -153,7 +152,7 @@ EOF
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get pods -w --show-labels
+oc get pods -w --show-labels
 ----
 
 [.console-output]
@@ -169,7 +168,7 @@ rs-quarkus-demo-t26gt   1/1     Running   0          58s   app=quarkus-demo,env=
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get rs
+oc get rs
 ----
 
 [.console-output]
@@ -185,7 +184,7 @@ RS를 describe해서, 맨 아래 Events 섹션에 ``replicaset-controller``가 �
 [.console-input]
 [source,bash]
 ----
-kubectl describe rs rs-quarkus-demo
+oc describe rs rs-quarkus-demo
 ----
 
 [.console-output]
@@ -224,7 +223,7 @@ Pod는 ReplicaSet에 "소유"됩니다. Pod 객체 안의 `ownerReferences` 필�
 [.console-input]
 [source,bash]
 ----
-kubectl get pod rs-quarkus-demo-mlnng -o jsonpath='{.metadata.ownerReferences[]}'
+oc get pod rs-quarkus-demo-mlnng -o jsonpath='{.metadata.ownerReferences[]}'
 ----
 
 [.console-output]
@@ -246,7 +245,7 @@ kubectl get pod rs-quarkus-demo-mlnng -o jsonpath='{.metadata.ownerReferences[]}
 [.console-input]
 [source,bash]
 ----
-kubectl delete pod rs-quarkus-demo-mlnng
+oc delete pod rs-quarkus-demo-mlnng
 ----
 
 그러면 이를 대체할 새 pod가 생겨납니다. 이것이 바로 네이키드 Pod에는 없었던 __자가 치유(self-healing)__ 능력입니다:
@@ -266,7 +265,7 @@ ReplicaSet을 삭제해서 연결된 모든 pod를 제거합니다:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl delete rs rs-quarkus-demo
+oc delete rs rs-quarkus-demo
 ----
 
 == Deployment
@@ -277,7 +276,7 @@ ReplicaSet은 "개수 유지"는 잘하지만, 정작 "이미지를 v1에서 v2�
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-cat <<EOF | kubectl apply -f -
+cat <<EOF | oc apply -f -
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -306,7 +305,7 @@ EOF
 [.console-input]
 [source,bash]
 ----
-kubectl get pods --show-labels
+oc get pods --show-labels
 ----
 
 [.console-output]
@@ -322,7 +321,7 @@ quarkus-demo-deployment-5979886fb7-grf59   1/1     Running   0          17s   ap
 [.console-input]
 [source,bash]
 ----
-kubectl exec -it quarkus-demo-deployment-5979886fb7-c888m -- curl localhost:8080
+oc exec -it quarkus-demo-deployment-5979886fb7-c888m -- curl localhost:8080
 ----
 
 [.console-output]

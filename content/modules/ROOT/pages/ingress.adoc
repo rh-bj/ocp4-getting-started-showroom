@@ -9,7 +9,7 @@ xref:service.adoc[Service] 장에서는 OpenShift 고유의 기능인 Route로 �
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-cat <<EOF | kubectl apply -f -
+cat <<EOF | oc apply -f -
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -39,13 +39,13 @@ EOF
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl expose deployment quarkus-demo-deployment --type=NodePort --port=8080
+oc expose deployment quarkus-demo-deployment --type=NodePort --port=8080
 ----
 
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get service quarkus-demo-deployment
+oc get service quarkus-demo-deployment
 ----
 
 [.console-output]
@@ -88,7 +88,7 @@ spec:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/demo-ingress.yaml
+oc apply -f apps/kubefiles/demo-ingress.yaml
 ----
 
 Ingress 리소스의 정보를 조회합니다:
@@ -96,7 +96,7 @@ Ingress 리소스의 정보를 조회합니다:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get ingress
+oc get ingress
 ----
 
 [.console-output]
@@ -136,7 +136,7 @@ service의 두 번째 버전을 배포합니다:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-cat <<EOF | kubectl apply -f -
+cat <<EOF | oc apply -f -
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -162,7 +162,7 @@ EOF
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl expose deployment mynode-deployment --type=NodePort --port=8000
+oc expose deployment mynode-deployment --type=NodePort --port=8000
 ----
 
 == Ingress 업데이트
@@ -195,7 +195,7 @@ spec:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/demo-ingress-2.yaml
+oc apply -f apps/kubefiles/demo-ingress-2.yaml
 ----
 
 테스트해 봅니다:
@@ -230,11 +230,11 @@ Node Bonjour on mynode-deployment-77c7bf857d-5nfl4 0
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl delete deployment mynode-deployment
-kubectl delete service mynode-deployment
+oc delete deployment mynode-deployment
+oc delete service mynode-deployment
 
-kubectl delete deployment quarkus-demo-deployment
-kubectl delete service quarkus-demo-deployment
+oc delete deployment quarkus-demo-deployment
+oc delete service quarkus-demo-deployment
 
-kubectl delete -f apps/kubefiles/demo-ingress-2.yaml
+oc delete -f apps/kubefiles/demo-ingress-2.yaml
 ----

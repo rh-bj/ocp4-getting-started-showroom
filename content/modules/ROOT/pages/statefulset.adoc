@@ -105,7 +105,7 @@ spec:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/quarkus-statefulset.yaml
+oc apply -f apps/kubefiles/quarkus-statefulset.yaml
 ----
 
 그러면 watch 터미널에서 다음과 같은 내용을 확인할 수 있습니다.
@@ -131,7 +131,7 @@ Pod 이름이 ``serviceName``에 ``-0``이 붙은 형태라는 점에 주목하�
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get statefulsets
+oc get statefulsets
 ----
 
 [.console-output]
@@ -146,7 +146,7 @@ quarkus-statefulset   1/1     109s
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl scale sts \#<.>
+oc scale sts \#<.>
   quarkus-statefulset --replicas=3
 ----
 <.> ``sts``는 `statefulset` api 리소스의 축약 이름입니다.
@@ -176,7 +176,7 @@ Pod의 이름이 <<hostname-formula,위에서 설명한 것과 동일한 명명 
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get events --sort-by=.metadata.creationTimestamp
+oc get events --sort-by=.metadata.creationTimestamp
 ----
 
 [.console-output]
@@ -204,7 +204,7 @@ kubectl get events --sort-by=.metadata.creationTimestamp
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl run -it --restart=Never --rm --image busybox:1.28 dns-test 
+oc run -it --restart=Never --rm --image busybox:1.28 dns-test 
 ----
 
 컨테이너 안에서 다음 명령을 실행해서 StatefulSet의 pod를 찾을 수 있는지 확인합니다.
@@ -252,7 +252,7 @@ exit
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl describe svc quarkus-statefulset
+oc describe svc quarkus-statefulset
 ----
 
 [.console-output]
@@ -280,7 +280,7 @@ Events:            <none>
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl describe endpoints quarkus-statefulset
+oc describe endpoints quarkus-statefulset
 ----
 
 [.console-output]
@@ -307,7 +307,7 @@ Events:  <none>
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl describe pod quarkus-statefulset-2
+oc describe pod quarkus-statefulset-2
 ----
 
 축약된 출력에서 우리 레이블을 확인할 수 있습니다(강조 표시됨).
@@ -347,7 +347,7 @@ service를 살펴봤으니 이제 생성해 봅시다:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/quarkus-statefulset-external-svc.yaml
+oc apply -f apps/kubefiles/quarkus-statefulset-external-svc.yaml
 ----
 
 한편, 메인 터미널에서 요청을 보냅니다:
@@ -371,7 +371,7 @@ Supersonic Subatomic Java with Quarkus quarkus-statefulset-2:1 #<.>
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl scale sts quarkus-statefulset --replicas=2
+oc scale sts quarkus-statefulset --replicas=2
 ----
 
 [tabs]
@@ -413,6 +413,6 @@ curl: (7) Failed to connect to 192.168.86.58 port 31834: Connection refused
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl delete -f apps/kubefiles/quarkus-statefulset.yaml
-kubectl delete -f apps/kubefiles/quarkus-statefulset-external-svc.yaml
+oc delete -f apps/kubefiles/quarkus-statefulset.yaml
+oc delete -f apps/kubefiles/quarkus-statefulset-external-svc.yaml
 ----

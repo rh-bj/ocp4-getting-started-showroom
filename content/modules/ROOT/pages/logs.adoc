@@ -2,7 +2,7 @@
 
 쿠버네티스/OpenShift 클러스터 전반에서 로그를 수집하고 확인하는 "프로덕션 준비" 방식은 다양합니다. 많은 사람들이 ELK(ElasticSearch, Logstash, Kibana)나 EFK(ElasticSearch, FluentD, Kibana) 계열을 선호합니다.
 
-여기서는 개발자가 pod 안에서 실행 중인 애플리케이션의 동작을 이해하는 데 필요한 것들에 초점을 맞춥니다. 컨테이너 환경에서는 애플리케이션에 직접 접속해 로그 파일을 열어 볼 수 없기 때문에, ``kubectl logs``로 컨테이너의 표준 출력(stdout)을 조회하는 것이 애플리케이션 동작을 확인하는 기본적인 방법입니다.
+여기서는 개발자가 pod 안에서 실행 중인 애플리케이션의 동작을 이해하는 데 필요한 것들에 초점을 맞춥니다. 컨테이너 환경에서는 애플리케이션에 직접 접속해 로그 파일을 열어 볼 수 없기 때문에, ``oc logs``로 컨테이너의 표준 출력(stdout)을 조회하는 것이 애플리케이션 동작을 확인하는 기본적인 방법입니다.
 
 실습에 사용할 Deployment를 하나 배포합니다:
 
@@ -10,7 +10,7 @@
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-cat <<EOF | kubectl apply -f -
+cat <<EOF | oc apply -f -
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -41,7 +41,7 @@ EOF
 [.console-input]
 [source, bash]
 ----
-kubectl get deployment my-deployment -o jsonpath='{.status.replicas}{"\n"}'
+oc get deployment my-deployment -o jsonpath='{.status.replicas}{"\n"}'
 ----
 
 그렇지 않다면 3개로 스케일업합니다:
@@ -50,7 +50,7 @@ kubectl get deployment my-deployment -o jsonpath='{.status.replicas}{"\n"}'
 [.console-input]
 [source, bash]
 ----
-kubectl scale --replicas=3 deployment/my-deployment
+oc scale --replicas=3 deployment/my-deployment
 ----
 
 [.console-output]
@@ -66,7 +66,7 @@ my-deployment-5dc67997c7-s4jc6   1/1     Running   0          34s
 [.console-input]
 [source, bash]
 ----
-kubectl logs my-deployment-5dc67997c7-m7z9f
+oc logs my-deployment-5dc67997c7-m7z9f
 ----
 
 [.console-output]
@@ -88,7 +88,7 @@ kubectl logs my-deployment-5dc67997c7-m7z9f
 [.console-input]
 [source, bash]
 ----
-kubectl logs my-deployment-5dc67997c7-m7z9f -f
+oc logs my-deployment-5dc67997c7-m7z9f -f
 ----
 
 방금 실행한 ``logs -f``는 아직 아무것도 출력하지 않고 있을 것입니다 — 애플리케이션이 아직 요청을 받은 적이 없기 때문입니다. 다른 터미널을 열어 해당 Pod에 직접 요청을 보내서, 그 로그 창에 새 줄이 나타나는지 확인해 봅시다:
@@ -96,7 +96,7 @@ kubectl logs my-deployment-5dc67997c7-m7z9f -f
 [.console-input]
 [source,bash]
 ----
-kubectl exec -it my-deployment-5dc67997c7-m7z9f -- /bin/bash
+oc exec -it my-deployment-5dc67997c7-m7z9f -- /bin/bash
 curl localhost:8080
 ----
 
@@ -112,7 +112,7 @@ Aloha from my-deployment-5dc67997c7-m7z9f
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-cat <<EOF | kubectl apply -f -
+cat <<EOF | oc apply -f -
 apiVersion: v1
 kind: Service
 metadata:
@@ -144,7 +144,7 @@ include::partial$loop.adoc[]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl logs -f deployments/my-deployment --all-pods
+oc logs -f deployments/my-deployment --all-pods
 ----
 
 [.console-output]
@@ -168,7 +168,7 @@ my-deployment-5dc67997c7-s4jc6 myapp Aloha from my-deployment-5dc67997c7-s4jc6
 [.console-input]
 [source,bash]
 ----
-kubectl logs my-deployment-5dc67997c7-s4jc6 -p 
+oc logs my-deployment-5dc67997c7-s4jc6 -p 
 ----
 ====
 
@@ -178,6 +178,6 @@ kubectl logs my-deployment-5dc67997c7-s4jc6 -p
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl delete service the-service
-kubectl delete deployment my-deployment
+oc delete service the-service
+oc delete deployment my-deployment
 ----

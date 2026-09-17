@@ -18,7 +18,7 @@ exit
 [.console-input]
 [source,bash]
 ----
-kubectl delete pod myboot-demo
+oc delete pod myboot-demo
 ----
 
 --

@@ -2,5 +2,5 @@
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-watch -n 1 -- kubectl get pods
+watch -n 1 -- oc get pods
 ----

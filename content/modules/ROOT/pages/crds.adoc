@@ -29,8 +29,7 @@ Operator 배포와, Operator가 다룰 ``CustomResources``를 담아 둘 네임�
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl create namespace {section-namespace}
-kubectl config set-context --current --namespace={section-namespace}
+oc new-project {section-namespace}
 ----
 
 === 지켜보기
@@ -70,7 +69,7 @@ CRD는 쿠버네티스 API를 확장합니다. 이 api 리소스들은 쉽게 �
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl api-resources
+oc api-resources
 ----
 
 [.console-output]
@@ -90,7 +89,7 @@ endpoints                         ep           v1                               
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl api-resources | grep Deployment
+oc api-resources | grep Deployment
 ----
 
 [.console-output]
@@ -105,7 +104,7 @@ deployments                       deploy       apps/v1                          
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get crds --all-namespaces
+oc get crds --all-namespaces
 ----
 
 [.console-output]
@@ -156,7 +155,7 @@ include::example$pizza-crd.yaml[]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/pizzas/pizza-crd.yaml
+oc apply -f apps/pizzas/pizza-crd.yaml
 ----
 
 이제 우리 CRD가 API의 일부가 되었는지 확인할 수 있을 것입니다.
@@ -165,7 +164,7 @@ kubectl apply -f apps/pizzas/pizza-crd.yaml
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get crds | grep pizza
+oc get crds | grep pizza
 ----
 
 결과:
@@ -183,7 +182,7 @@ CRD는 모든 ``api-resources``의 일부이므로, 이제 ``pizzas``가 클러�
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl api-resources | grep pizzas
+oc api-resources | grep pizzas
 ----
 
 결과:
@@ -194,12 +193,12 @@ kubectl api-resources | grep pizzas
 pizzas                            pz           mykubernetes.acme.org          true         Pizza
 ----
 
-마지막으로, ``CustomResourceDefinition``의 스키마를 정의했으므로 사람들이 우리 api를 더 쉽게 사용할 수 있게 되었습니다. CRD는 `kubectl describe` 기능과도 연동됩니다.
+마지막으로, ``CustomResourceDefinition``의 스키마를 정의했으므로 사람들이 우리 api를 더 쉽게 사용할 수 있게 되었습니다. CRD는 `oc describe` 기능과도 연동됩니다.
 
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl explain pizza
+oc explain pizza
 ----
 
 그러면 다음과 같이 유용한 출력을 얻을 수 있습니다.
@@ -328,7 +327,7 @@ operator 컨트롤러를 만드는 것은 이 튜토리얼의 범위를 벗어�
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/pizzas/pizza-deployment.yaml
+oc apply -f apps/pizzas/pizza-deployment.yaml
 ----
 
 곧 watch 창(**{watch-terminal}**)에서 다음과 같은 내용을 보게 될 것입니다.
@@ -375,8 +374,8 @@ include::example$cheese-pizza.yaml[]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/pizzas/cheese-pizza.yaml
-kubectl get pizzas
+oc apply -f apps/pizzas/cheese-pizza.yaml
+oc get pizzas
 ----
 
 [.console-output]
@@ -389,7 +388,7 @@ cheesep   4s
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl describe pizza cheesep
+oc describe pizza cheesep
 ----
 
 [.console-output]
@@ -475,9 +474,9 @@ include::example$meat-pizza.yaml[]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/pizzas/meat-pizza.yaml
-kubectl apply -f apps/pizzas/veggie-lovers.yaml
-kubectl get pizzas --all-namespaces
+oc apply -f apps/pizzas/meat-pizza.yaml
+oc apply -f apps/pizzas/veggie-lovers.yaml
+oc get pizzas --all-namespaces
 ----
 
 **{watch-terminal}**의 pod watch에는 다음과 같이 표시될 것입니다.
@@ -553,8 +552,8 @@ veggiep-pod pizza-maker 2021-07-19 08:24:55,790 INFO  [io.quarkus] (main) pizza-
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl delete all --all #<.>
-kubectl delete ns {section-namespace}
+oc delete all --all #<.>
+oc delete project {section-namespace}
 ----
 <.> 네임스페이스는 보통 내부 리소스를 자동으로 정리하는 경향이 있지만, `finalizer` 문제가 생기지 않도록 먼저 비워두는 것이 대체로 좋은 습관입니다.
 
@@ -577,7 +576,7 @@ namespace "pizzahat" deleted
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl delete crd pizzas.mykubernetes.acme.org #<.>
+oc delete crd pizzas.mykubernetes.acme.org #<.>
 ----
 <.> crd를 삭제할 때는 정규화된 전체 이름으로 참조해야 합니다.
 
@@ -597,8 +596,7 @@ customresourcedefinition.apiextensions.k8s.io "pizzas.mykubernetes.acme.org" del
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl create namespace franz
-kubectl config set-context --current --namespace=franz
+oc new-project franz
 ----
 
 [#kafka-operator-install]
@@ -616,8 +614,8 @@ Operator 설치가 끝났으면, 그 Operator가 실제로 클러스터에 떠 �
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get csv -n operators
-kubectl get crds | grep kafka
+oc get csv -n operators
+oc get crds | grep kafka
 ----
 
 다른 터미널에서 watch를 시작합니다:
@@ -626,7 +624,7 @@ kubectl get crds | grep kafka
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get pods -w
+oc get pods -w
 ----
 
 Pizza Operator 때와 마찬가지로, 이제 우리가 할 일은 원하는 상태를 나타내는 Custom Resource 하나를 배포하는 것뿐입니다. Kafka 브로커와 ZooKeeper를 몇 개씩 띄울지 같은 세부 사항은 Kafka Operator가 알아서 처리합니다. Kafka 클러스터를 요청하는 리소스를 배포합니다:
@@ -635,7 +633,7 @@ Pizza Operator 때와 마찬가지로, 이제 우리가 할 일은 원하는 상
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/mykafka.yml
+oc apply -f apps/kubefiles/mykafka.yml
 ----
 
 [.console-output]
@@ -657,7 +655,7 @@ my-cluster-zookeeper-2                        2/2     Running   0          92s
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get kafkas
+oc get kafkas
 ----
 
 [.console-output]
@@ -673,8 +671,8 @@ my-cluster   3                        3
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl delete namespace {section-namespace}
-kubectl delete -f apps/pizzas/pizza-crd.yaml
-kubectl delete kafka my-cluster
-kubectl delete namespace franz
+oc delete project {section-namespace}
+oc delete -f apps/pizzas/pizza-crd.yaml
+oc delete kafka my-cluster
+oc delete project franz
 ----

@@ -1,4 +1,4 @@
-= kubectl exec
+= oc exec
 
 exec 명령을 사용하면 pod 안으로 "셸 접속"해서, 애플리케이션이 실행되고 있는 작은 리눅스 머신 안에서 직접 명령을 실행할 수 있습니다.
 
@@ -7,7 +7,7 @@ exec 명령을 사용하면 pod 안으로 "셸 접속"해서, 애플리케이션
 [.console-input]
 [source,bash]
 ----
-kubectl exec -it {podname} -- /bin/bash
+oc exec -it {podname} -- /bin/bash
 ----
 
 또는 다음과 같이도 실행할 수 있습니다:
@@ -15,7 +15,7 @@ kubectl exec -it {podname} -- /bin/bash
 [.console-input]
 [source,bash]
 ----
-kubectl exec {podname} -- /somecommand
+oc exec {podname} -- /somecommand
 ----
 
 이 섹션에서는 쿠버네티스 컨테이너 안에서 Java를 실행할 때 흔히 볼 수 있는 OOMKilled 문제를 디버깅해 보겠습니다.
@@ -26,7 +26,7 @@ Resources 장에서 사용한 Spring Boot pod가 여전히 실행 중인지 확�
 [.console-input]
 [source, bash]
 ----
-kubectl get pods
+oc get pods
 ----
 
 [.console-output]
@@ -42,8 +42,8 @@ myboot-d78fb6d58-69kl7   1/1     Running   2          32m
 [.console-input]
 [source, bash]
 ----
-PODNAME=$(kubectl get pod  -l app=myboot -o name)
-kubectl exec -it $PODNAME -- /bin/bash
+PODNAME=$(oc get pod  -l app=myboot -o name)
+oc exec -it $PODNAME -- /bin/bash
 ----
 
 `ps` 명령을 실행해서 현재 실행 중인 프로세스를 확인합니다:
@@ -245,6 +245,6 @@ exit
 [.console-input]
 [source,bash]
 ----
-kubectl delete deployment myboot
-kubectl delete service myboot
+oc delete deployment myboot
+oc delete service myboot
 ----

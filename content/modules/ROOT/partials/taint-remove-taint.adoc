@@ -3,7 +3,7 @@
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl describe pod #<.>
+oc describe pod #<.>
 ----
 <.> 이 경우에는 Pod가 하나뿐입니다. 특정 Pod를 지정하고 싶다면 Pod 이름(예: `myboot-7f889dd6d-n5z55`)을 추가하면 됩니다.
 
@@ -34,7 +34,7 @@ Events:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl get nodes
+oc get nodes
 ----
 
 [.console-output]
@@ -57,7 +57,7 @@ ip-10-0-175-64.eu-central-1.compute.internal    Ready    worker   18h   v1.16.2
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl taint node {chosen-node} color:NoSchedule- #<.>
+oc taint node {chosen-node} color:NoSchedule- #<.>
 ----
 <.> 여기서 ``-``를 붙이면 해당 taint(동작이 ``NoSchedule``인 `color` taint)를 제거한다는 의미입니다.
 

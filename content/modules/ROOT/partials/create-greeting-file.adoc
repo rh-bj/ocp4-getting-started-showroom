@@ -1,7 +1,7 @@
 [.console-input]
 [source,bash]
 ----
-kubectl exec -ti myboot-demo -- /bin/bash
+oc exec -ti myboot-demo -- /bin/bash
 ----
 
 그런 다음 Pod 안에서 `/tmp/demo` 디렉터리에 콘텐츠를 생성합니다.

@@ -5,8 +5,8 @@
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-IP=$(kubectl get service {tmp-service-exposed} -o jsonpath="{.spec.clusterIP}")
-PORT=$(kubectl get service {tmp-service-exposed} -o jsonpath="{.spec.ports[*].port}")
+IP=$(oc get service {tmp-service-exposed} -o jsonpath="{.spec.clusterIP}")
+PORT=$(oc get service {tmp-service-exposed} -o jsonpath="{.spec.ports[*].port}")
 ----
 
 Service에 curl 요청을 보냅니다:

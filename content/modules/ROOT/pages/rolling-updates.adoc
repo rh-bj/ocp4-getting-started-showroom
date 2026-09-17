@@ -1,6 +1,6 @@
 = 롤링 업데이트
 
-앞서 xref:kubectl.adoc#set-image-myboot-v1[kubectl] 장에서 이미지를 바꿔서 잠깐 롤링 업데이트를 맛봤습니다. 이번 장에서는 그 과정을 한 단계씩 멈춰서 자세히 들여다봅니다: Deployment의 이미지가 바뀌면 새 리비전의 ReplicaSet이 만들어지고, 기존 ReplicaSet의 복제본 수를 서서히 줄이는 동시에 새 ReplicaSet의 복제본 수를 서서히 늘리면서 전환이 이루어집니다. 이 전략 덕분에 애플리케이션을 완전히 내렸다가 올리지 않고도(즉, 무중단으로) 새 버전으로 넘어갈 수 있습니다.
+앞서 xref:kubectl.adoc#set-image-myboot-v1[oc] 장에서 이미지를 바꿔서 잠깐 롤링 업데이트를 맛봤습니다. 이번 장에서는 그 과정을 한 단계씩 멈춰서 자세히 들여다봅니다: Deployment의 이미지가 바뀌면 새 리비전의 ReplicaSet이 만들어지고, 기존 ReplicaSet의 복제본 수를 서서히 줄이는 동시에 새 ReplicaSet의 복제본 수를 서서히 늘리면서 전환이 이루어집니다. 이 전략 덕분에 애플리케이션을 완전히 내렸다가 올리지 않고도(즉, 무중단으로) 새 버전으로 넘어갈 수 있습니다.
 
 올바른 네임스페이스에 있는지 확인합니다.
 
@@ -19,8 +19,8 @@ include::partial$set-context.adoc[]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-kubectl apply -f apps/kubefiles/myboot-deployment-resources-limits.yml
-kubectl apply -f apps/kubefiles/myboot-service.yml
+oc apply -f apps/kubefiles/myboot-deployment-resources-limits.yml
+oc apply -f apps/kubefiles/myboot-service.yml
 ----
 
 **터미널 1**: Pod를 지켜봅니다.
@@ -40,7 +40,7 @@ include::partial$loop.adoc[]
 
 **터미널 3**: 명령을 실행합니다.
 
-Deployment를 describe(또는 `kubectl edit`)합니다:
+Deployment를 describe(또는 `oc edit`)합니다:
 
 :describe-deployment-name: myboot
 :section-k8s: rolling-init
@@ -74,7 +74,7 @@ include::partial$tip_vscode_kube_editor.adoc[]
 [.console-input]
 [source, bash]
 ----
-kubectl edit deployment myboot
+oc edit deployment myboot
 ----
 
 "replicas"를 찾습니다:
@@ -111,7 +111,7 @@ spec:
 [.console-input]
 [source, bash]
 ----
-kubectl get pods
+oc get pods
 ----
 
 [.console-output]
@@ -128,7 +128,7 @@ myboot-d78fb6d58-ljkjp   1/1     Running   0          3m
 [.console-input]
 [source, bash]
 ----
-kubectl edit deployment myboot
+oc edit deployment myboot
 ----
 
 image 속성을 찾습니다:
@@ -159,7 +159,7 @@ image 속성을 찾습니다:
 [.console-input]
 [source, bash]
 ----
-kubectl get pods
+oc get pods
 ----
 
 [.console-output]
@@ -189,7 +189,7 @@ deployment의 상태를 확인합니다:
 [.console-input]
 [source, bash]
 ----
-kubectl rollout status deployment myboot
+oc rollout status deployment myboot
 ----
 
 [.console-output]
@@ -204,7 +204,7 @@ deployment "myboot" successfully rolled out
 [.console-input]
 [source, bash]
 ----
-kubectl get rs
+oc get rs
 ----
 
 [.console-output]
@@ -245,7 +245,7 @@ Events:
 [.console-input]
 [source, bash]
 ----
-kubectl rollout history deployment/myboot
+oc rollout history deployment/myboot
 ----
 
 다음 명령으로 v1로 롤백할 수 있습니다:
@@ -254,7 +254,7 @@ kubectl rollout history deployment/myboot
 [.console-input]
 [source, bash]
 ----
-kubectl rollout undo deployment/myboot --to-revision=1
+oc rollout undo deployment/myboot --to-revision=1
 ----
 
 그러면 Aloha로 롤백됩니다:
@@ -286,7 +286,7 @@ Spring Boot 이미지 대신 Quarkus 이미지를 사용해 보세요.
 [.console-input]
 [source, bash]
 ----
-kubectl set image deployment/myboot myboot=quay.io/rhdevelopers/quarkus-demo:v1
+oc set image deployment/myboot myboot=quay.io/rhdevelopers/quarkus-demo:v1
 ----
 
 그러면 오류가 발생하지 않아야 합니다. Quarkus는 그야말로 놀라울 정도로 빠르게 부팅됩니다.
