@@ -3,7 +3,7 @@
 *** xref:installation.adoc#tutorial-all-local[CLI]
 *** xref:installation.adoc#start-kubernetes[환경 확인하기]
 
-* 2. 입문
+* 2. 파트 1
 ** xref:kubectl.adoc[oc]
 ** xref:pod-rs-deployment.adoc[Pod, ReplicaSet, Deployment]
 ** xref:service.adoc[Service]
@@ -11,18 +11,18 @@
 ** xref:service-magic.adoc[Service의 마법]
 ** xref:blue-green.adoc[Blue/Green 배포]
 
-* 3. 초급
+* 3. 파트 2
 ** xref:resources.adoc[리소스와 제한]
 ** xref:rolling-updates.adoc[롤링 업데이트]
 ** xref:live-ready.adoc[Liveness, Readiness & Startup]
 ** xref:configmap.adoc[ConfigMap]
 
-* 4. 중급
+* 4. 파트 3
 ** xref:secrets.adoc[Secret]
 ** xref:volumes-persistentvolumes.adoc[Volume]
 ** xref::jobs-cronjobs.adoc[Job & CronJob]
 ** xref::daemonset.adoc[DaemonSet]
 ** xref::statefulset.adoc[StatefulSet]
 
-* 5. 고급
-** xref:ingress.adoc[Ingress]-
+* 5. 번외
+** xref:ingress.adoc[Ingress]

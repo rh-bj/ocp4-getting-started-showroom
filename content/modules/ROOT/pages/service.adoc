@@ -82,7 +82,6 @@ spec:
     - protocol: TCP
       port: 80
       targetPort: 8080
-  type: LoadBalancer
 EOF
 ----
 
@@ -92,17 +91,15 @@ EOF
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc get services -w
+oc get services
 ----
 
 [.console-output]
 [source,bash,subs="+macros,+attributes"]
 ----
-NAME          TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
-the-service   LoadBalancer   172.30.103.41   <pending>     80:31974/TCP     4s
+NAME          TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE
+the-service   ClusterIP   172.231.60.16   <none>        80/TCP    3s
 ----
-
-``CLUSTER-IP``는 Service를 만들자마자 즉시 할당되는, 클러스터 내부에서 사용할 안정적인 주소입니다. ``EXTERNAL-IP``는 클러스터 밖에서 접근하기 위한 주소로 실제 클라우드 로드밸런서가 있어야 채워지는데, 이 실습 환경에는 로드밸런서가 연결되어 있지 않으므로 계속 ``<pending>``으로 남아 있을 수 있습니다. 우리는 클러스터 내부 네트워크의 터미널을 사용하고 있으므로 문제없습니다 — 이미 할당된 ``CLUSTER-IP``로 접근하면 됩니다.
 
 :section-k8s: services
 :service-exposed: the-service
@@ -116,13 +113,74 @@ include::partial$env-curl.adoc[]
 Supersonic Subatomic Java with Quarkus quarkus-demo-deployment-5979886fb7-grf59:1
 ----
 
-NOTE: "5979886fb7-grf59"는 Pod의 고유 id의 일부입니다. `.java` 코드는 ``System.getenv().getOrDefault("HOSTNAME", "unknown");``을 사용합니다.
+
 
 == Route로 외부에 노출하기
 
-지금까지 만든 Service는 ``ClusterIP``를 통해 __클러스터 내부__에서만 접근할 수 있습니다. 그렇다면 클러스터 __외부__의 사용자가 이 애플리케이션에 접근하려면 어떻게 해야 할까요? 순수 쿠버네티스에는 ``Ingress``라는 리소스가 있지만(이 개념은 xref:ingress.adoc[Ingress] 장에서 자세히 다룹니다), OpenShift에는 그보다 먼저 만들어진 더 간단한 방법인 ``Route``가 있습니다. ``Route``는 트래픽 규칙 정의와 그 구현(내장된 HAProxy Router)을 하나로 묶어서 제공하므로, 별도의 컨트롤러 설치 없이 명령 한 줄로 바로 사용할 수 있습니다.
+지금까지 만든 Service는 ``ClusterIP``를 통해 __클러스터 내부__에서만 접근할 수 있습니다. 그렇다면 클러스터 __외부__의 사용자가 이 애플리케이션에 접근하려면 어떻게 해야 할까요? 순수 쿠버네티스에는 ``Ingress``라는 리소스가 있지만(이 개념은 번외로 빼둔 xref:ingress.adoc[Ingress] 장에서 자세히 다룹니다), OpenShift에는 그보다 먼저 만들어진 더 간단한 방법인 ``Route``가 있습니다. ``Route``는 트래픽 규칙 정의와 그 구현(내장된 HAProxy Router)을 하나로 묶어서 제공하므로, 별도의 컨트롤러 설치 없이 명령 한 줄로 바로 사용할 수 있습니다.
 
 ``oc expose service``는 지정한 Service를 대상으로 하는 Route를 자동으로 만들어 줍니다. Route가 만들어지면 OpenShift는 `*.apps.<클러스터 도메인>` 형태의 호스트 이름을 자동으로 할당해서, 그 이름으로 들어오는 외부 트래픽을 우리 Service로 연결해 줍니다:
+
+
+/////////
+
+== Route로 외부에 노출하기
+
+앞에서 `Service`를 생성하여 여러 Pod에 안정적으로 접근할 수 있는 하나의 접점을 만들었습니다.
+
+하지만 우리가 생성한 Service의 타입은 `ClusterIP`입니다. +
+`ClusterIP`는 **OpenShift 클러스터 내부에서만 사용할 수 있는 주소**이기 때문에, 일반 사용자가 웹 브라우저를 열고 이 주소로 직접 애플리케이션에 접근할 수는 없습니다.
+
+[source,text]
+------
+클러스터 내부
+
+Pod ─┐
+Pod ─┼── Service (ClusterIP)
+Pod ─┘
+------
+
+그렇다면 클러스터 외부의 사용자가 애플리케이션에 접근하게 하려면 어떻게 해야 할까요?
+
+OpenShift에서는 **Route**를 사용하여 Service를 클러스터 외부에 노출할 수 있습니다.
+
+Route를 생성하면 애플리케이션에 접근할 수 있는 **호스트 이름(URL)** 이 만들어지고, OpenShift의 Router가 이 주소로 들어오는 요청을 해당 Service로 전달합니다.
+
+[source,text]
+-------------------------------------------
+외부 사용자
+│
+│ http://quarkus-demo-<project>.apps.<cluster-domain>
+▼
+┌─────────────────────────────────────────┐
+│ OpenShift Cluster                       │
+│                                         │
+│            Router                       │
+│               │                         │
+│               │ Route                   │
+│               ▼                         │
+│          Service                        │
+│          /   |   \                      │
+│         ▼    ▼    ▼                     │
+│       Pod   Pod   Pod                   │
+│                                         │
+└─────────────────────────────────────────┘
+-------------------------------------------
+
+각 리소스의 역할을 구분해 보면 다음과 같습니다.
+
+* **Pod**: 실제 애플리케이션이 실행되는 곳
+* **Service**: 여러 Pod를 하나의 안정적인 주소로 묶어 주고, 클러스터 내부에서 접근할 수 있게 함
+* **Route**: Service에 외부에서 접근할 수 있는 호스트 이름을 제공
+* **Router**: Route에 정의된 규칙을 보고 실제 외부 요청을 적절한 Service로 전달
+
+외부 사용자 → Route → Service → Pod
+라고 기억하면 이해하기 쉽습니다.
+
+OpenShift 클러스터에는 일반적으로 외부 요청을 처리하는 **Ingress Controller(Router)** 가 기본으로 구성되어 있습니다. +
+우리가 Route를 생성하면 이 Router가 Route의 호스트 이름을 확인하고, 해당 요청을 Route가 가리키는 Service로 전달합니다.
+
+예를 들어 `quarkus-demo` Service를 외부에 노출해 보겠습니다.
 
 [#expose-service]
 [.console-input]
@@ -135,18 +193,30 @@ oc get routes
 [.console-output]
 [source,bash]
 ----
-NAME          HOST/PORT                                     PATH   SERVICES      PORT   TERMINATION   WILDCARD
-the-service   the-service-myspace.apps.gcp.burrsutter.dev          the-service   8080                 None
+NAME          HOST/PORT                                                       PATH   SERVICES      PORT   TERMINATION   WILDCARD
+the-service   the-service-{user}-myspace.{openshift_cluster_ingress_domain}          the-service   8080                 None
 ----
 
-그런 다음 service에 요청을 보냅니다:
+`oc expose service` 명령은 지정한 Service를 대상으로 하는 `Route` 리소스를 생성합니다.
+여기서 `HOST/PORT`에 표시되는 주소가 **클러스터 외부에서 애플리케이션에 접근할 때 사용할 주소**입니다.
+
+별도의 호스트 이름을 지정하지 않으면 OpenShift의 Ingress Controller가 사용하는 도메인을 기반으로 Route의 호스트 이름이 결정됩니다. 일반적인 OpenShift 환경에서는 다음과 비슷한 형태를 볼 수 있습니다.
+
+[source,text]
+----
+<route-name>-<project-name>.apps.<cluster-domain>
+----
+
+이제 표시된 주소로 요청을 보내 봅니다.
 
 [#curl-services-route]
 [.console-input]
 [source, bash]
 ----
-curl the-service-myspace.apps.gcp.burrsutter.dev
+curl the-service-{user}-myspace.{openshift_cluster_ingress_domain}
 ----
+
+또는 웹 브라우저에서 해당 주소에 접근해도 됩니다.
 
 [.console-output]
 [source,bash]
@@ -154,27 +224,4 @@ curl the-service-myspace.apps.gcp.burrsutter.dev
 Supersonic Subatomic Java with Quarkus quarkus-demo-deployment-5979886fb7-gdtnz:3
 ----
 
-=== jsonpath로 스크립팅에 필요한 데이터 요소 추출하기
-
-다음 명령은 쿠버네티스 객체를 JSON 형식의 파일로 덤프합니다:
-
-[.console-input]
-[source,bash]
-----
-oc get route the-service -o json > myroutes.json
-----
-
-JSONPath 문법을 사용해서 JSON에서 특정 정보만 추출할 수도 있습니다.
-
-[#route-jq]
-[.console-input]
-[source, bash]
-----
-oc get route the-service -o jsonpath="{.spec.host}"
-----
-
-[.console-output]
-[source, bash]
-----
-the-service-myspace.apps.gcp.burrsutter.dev
-----
+지금까지 service를 통한 클러스터 내부에서의 pod 노출과 Route/Ingress를 통한 외부로의 Service 노출을 확인하였습니다.
