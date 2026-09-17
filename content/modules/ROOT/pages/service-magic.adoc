@@ -345,6 +345,7 @@ oc get endpointslice
 [source,bash,subs="+macros,+attributes"]
 ----
 oc delete project {user}-funstuff
+oc project {user}-myspace
 ----
 
 네임스페이스(프로젝트)가 완전히 삭제되기까지 시간이 걸릴 수도 있습니다. 

@@ -33,7 +33,36 @@ No resources found in myspace namespace.
 [.console-input]
 [source, bash]
 ----
-oc apply -f apps/kubefiles/myboot-deployment-resources-limits.yml
+cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: myboot
+  name: myboot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: myboot
+  template:
+    metadata:
+      labels:
+        app: myboot
+    spec:
+      containers:
+      - name: myboot
+        image: quay.io/rhdevelopers/myboot:v1
+        ports:
+          - containerPort: 8080
+        resources:
+          requests:
+            memory: "300Mi"
+            cpu: "250m" # 1/4 core
+          limits:
+            memory: "900Mi"
+            cpu: "1000m" # 1 core
+EOF
 ----
 
 복제본을 2개로 스케일합니다:
