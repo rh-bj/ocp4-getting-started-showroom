@@ -21,18 +21,17 @@ include::partial$optional-requisites.adoc[]
 (아래 링크를 클릭하여 웹콘솔을 별도 창으로 띄워도 되고, 현재 보시는 화면 오른쪽에서 바로 사용해도 됩니다)
 
 **웹 콘솔:** {openshift_console_url} +
-**기본 프로젝트:** `wksp-{user}`
 
 **사용자 이름:**
 [.console-input]
-[source]
+[source,bash,subs="+macros,+attributes"]
 ----
 {user}
 ----
 
 **비밀번호:**
 [.console-input]
-[source]
+[source,bash,subs="+macros,+attributes"]
 ----
 {password}
 ----
@@ -42,7 +41,7 @@ include::partial$optional-requisites.adoc[]
 image::2-1.png[2-1]
 
 처음 눌렀을 때에는 적절한 네임스페이스를 선택하고 '시작'버튼을 눌러 터미널을 활성화해야 합니다.
-`wksp-{user}`를 선택한 뒤 '시작' 버튼을 누르세요.
+``wksp-{user}``를 선택한 뒤 '시작' 버튼을 누르세요.
 
 image::2-3.png[2-3]
 
