@@ -16,5 +16,3 @@ tabs:
     port: 443
   - name: OCP Console
     url: 'https://console-openshift-console.${DOMAIN}'
-  - name: Gitea
-    url: 'https://gitea.${DOMAIN}'
