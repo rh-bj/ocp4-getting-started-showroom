@@ -1,4 +1,5 @@
 = 로그
+include::vars.adoc[]
 
 쿠버네티스/OpenShift 클러스터 전반에서 로그를 수집하고 확인하는 "프로덕션 준비" 방식은 다양합니다. 많은 사람들이 ELK(ElasticSearch, Logstash, Kibana)나 EFK(ElasticSearch, FluentD, Kibana) 계열을 선호합니다.
 

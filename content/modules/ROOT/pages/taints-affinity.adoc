@@ -1,4 +1,5 @@
 = Taint와 Affinity
+include::vars.adoc[]
 include::_attributes.adoc[]
 :watch-terminal: 터미널 2
 

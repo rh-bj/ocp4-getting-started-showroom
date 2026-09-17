@@ -1,4 +1,5 @@
 = ConfigMap
+include::vars.adoc[]
 
 ConfigMap은 애플리케이션의 설정을 외부화할 수 있게 해주는 쿠버네티스 리소스입니다.
 

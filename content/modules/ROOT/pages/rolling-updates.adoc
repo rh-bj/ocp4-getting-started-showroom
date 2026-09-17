@@ -1,4 +1,5 @@
 = 롤링 업데이트
+include::vars.adoc[]
 
 앞서 xref:kubectl.adoc#set-image-myboot-v1[oc] 장에서 이미지를 바꿔서 잠깐 롤링 업데이트를 맛봤습니다. 이번 장에서는 그 과정을 한 단계씩 멈춰서 자세히 들여다봅니다: Deployment의 이미지가 바뀌면 새 리비전의 ReplicaSet이 만들어지고, 기존 ReplicaSet의 복제본 수를 서서히 줄이는 동시에 새 ReplicaSet의 복제본 수를 서서히 늘리면서 전환이 이루어집니다. 이 전략 덕분에 애플리케이션을 완전히 내렸다가 올리지 않고도(즉, 무중단으로) 새 버전으로 넘어갈 수 있습니다.
 

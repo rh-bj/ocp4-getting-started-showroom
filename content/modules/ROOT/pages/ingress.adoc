@@ -1,4 +1,5 @@
 = Ingress
+include::vars.adoc[]
 
 xref:service.adoc[Service] 장에서는 OpenShift 고유의 기능인 Route로 애플리케이션을 외부에 노출했습니다. 이번 장에서는 Route의 기반이 되는, 쿠버네티스 표준 리소스인 ``Ingress``를 직접 사용해 봅니다. OpenShift 클러스터에는 이미 이 표준 Ingress API를 처리하는 라우터(Ingress 컨트롤러)가 내장되어 있으므로, 별도로 컨트롤러를 설치하거나 활성화할 필요 없이 바로 `Ingress` 리소스를 만들어 사용할 수 있습니다.
 

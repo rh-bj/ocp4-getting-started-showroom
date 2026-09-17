@@ -1,4 +1,5 @@
 = 이미지 빌드하기
+include::vars.adoc[]
 
 // See antora yaml (such as github-pages.yml) to change what attribute docker-host is set to
 
