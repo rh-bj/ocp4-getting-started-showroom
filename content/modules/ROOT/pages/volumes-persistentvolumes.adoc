@@ -677,31 +677,258 @@ spec:
         fsType: ext4
 ----
 
-앞의 스니펫에서 주목해야 할 점은, 애플리케이션에 속한 것들(즉 컨테이너, probe, 포트 등)로 더 __dev__ 쪽에 가까운 것과, 클라우드와 더 관련된 것들(즉 물리적 스토리지)로 더 __ops__ 쪽에 가까운 것이 뒤섞여 있다는 것입니다.
+과거에는 다음과 같이 Pod에 AWS 전용 Volume 설정을 직접 작성할 수 있었습니다.
+하지만 이런 방식에는 한 가지 문제가 있습니다.
 
-이런 개념의 뒤섞임을 피하기 위해, 쿠버네티스는 어느 정도 추상화 계층을 제공해서, 개발자는 그저 데이터를 저장할 공간을 요청하고(__persistent volume claim__), 운영팀이 물리적인 스토리지 설정을 제공하게 합니다.
+Pod의 정의 안에 애플리케이션 실행에 필요한 정보와 실제 인프라에 대한 정보가 함께 들어가게 됩니다.
+
+[source,text]
+--------------------------------------
+Pod
+│
+├─ Container Image
+├─ Port
+├─ Probe
+│
+└─ AWS EBS Volume ID   ← 특정 인프라에 대한 정보
+--------------------------------------
+
+애플리케이션 개발자는 보통 다음과 같은 것을 알고 싶습니다.
+
+[source,text]
+--------------------------
+"이 애플리케이션에 10Gi 크기의 영구 저장 공간이 필요합니다."
+--------------------------
+
+반면 실제로 그 저장 공간을 AWS EBS로 만들 것인지, Ceph로 만들 것인지, NFS로 제공할 것인지와 같은 내용은 클러스터의 스토리지 환경에 따라 달라질 수 있습니다.
+
+Kubernetes는 이러한 **스토리지 사용 방법과 실제 스토리지 구현을 분리**하기 위해 `PersistentVolume`, `PersistentVolumeClaim`, `StorageClass`라는 추상화 계층을 제공합니다.
+
+[source,text]
+------------------------
+Application / Pod
+│
+│ 저장 공간이 필요함
+▼
+PVC (PersistentVolumeClaim)
+│
+│ 필요한 스토리지 요청
+▼
+PV (PersistentVolume)
+│
+│ 실제 Storage와 연결
+▼
+Physical / Cloud Storage
+------------------------
+
+이 구조를 통해 애플리케이션은 실제 스토리지가 어디에 있는지 자세히 알지 못해도 필요한 저장 공간을 사용할 수 있습니다.
+
+현재 Kubernetes와 OpenShift에서는 다양한 스토리지 시스템을 연결하기 위해 주로 **CSI(Container Storage Interface)** 드라이버를 사용합니다.
 
 ==== 정리
 
 include::partial$terminal-cleanup.adoc[tags=**;!*;term-exec]
 
-== Persistent Volume과 Persistent Volume Claim
+== PersistentVolume과 PersistentVolumeClaim
 
-`PersistentVolume`(__PV__)은 관리자가 만들거나, ``Storage Classes``를 사용해 Pod와 독립적으로 동적으로 생성되는 쿠버네티스 리소스입니다.
-이는 스토리지 구현의 세부 사항을 담고 있으며, NFS, Ceph, iSCSI, 또는 클라우드 제공업체 전용 스토리지 시스템일 수 있습니다.
+`PersistentVolume`(**PV**)은 Kubernetes 클러스터에서 사용할 수 있는 **영구 저장 공간을 나타내는 리소스**입니다.
 
-`PersistentVolumeClaim`(__PVC__)은 사용자의 스토리지 요청입니다.
-특정 volume 크기나, 예를 들어 접근 모드를 요청할 수 있습니다.
+PV는 관리자가 미리 생성할 수도 있고, ``StorageClass``를 통해 필요할 때 동적으로 생성할 수도 있습니다.
 
-=== 정적 프로비저닝과 동적 프로비저닝
+PV는 특정 Pod의 수명과 독립적으로 존재하며, 실제로는 다음과 같은 스토리지와 연결될 수 있습니다.
 
-Persistent Volume은 **정적**으로 또는 **동적**으로 프로비저닝될 수 있습니다.
+* AWS EBS
+* Ceph
+* NFS
+* 기타 CSI 기반 스토리지
 
-정적 프로비저닝은 클러스터 관리자가 기존 스토리지 장치(hostPath, 미리 준비된 NFS 경로, 클라우드 디스크 등)를 가리키는 ``PersistentVolume``을 미리 수동으로 만들어 두는 방식입니다. 이 방식에서는 PV와 PVC를 관리자와 사용자가 각각 수동으로 제공해야 합니다.
+`PersistentVolumeClaim`(**PVC**)은 사용자가 **필요한 저장 공간을 요청하는 리소스**입니다.
 
-동적 프로비저닝은 클러스터 관리자가 스토리지를 미리 준비해 둘 필요를 없애줍니다.
-대신, 사용자가 원하는 ``StorageClass``를 참조하는 ``PersistentVolumeClaim``만 만들면, 그에 맞는 실제 스토리지와 ``PersistentVolume``이 자동으로 만들어집니다.
-동적 프로비저닝의 주된 목적은 클라우드/온프레미스 스토리지 솔루션과 함께 자동으로 동작하는 것입니다.
+예를 들어 애플리케이션 개발자는 다음과 같이 요청할 수 있습니다.
+
+[source,yaml]
+-------------
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+name: my-data
+spec:
+accessModes:
+- ReadWriteOnce
+resources:
+requests:
+storage: 10Gi
+-------------
+
+이 PVC는 다음과 같은 의미입니다.
+
+[source,text]
+----------------------
+"10Gi 크기의 영구 저장 공간이 필요합니다."
+
+크기       : 10Gi
+접근 방식  : ReadWriteOnce
+----------------------
+
+중요한 점은 이 YAML에는 다음과 같은 실제 스토리지 구현 정보가 없다는 것입니다.
+
+[source,text]
+---------
+AWS EBS Volume ID
+Ceph Pool
+스토리지 서버 주소
+물리 디스크 정보
+---------
+
+애플리케이션은 **어떤 저장 공간이 필요한지만 요청**하고, 실제 스토리지를 어떻게 제공할지는 Kubernetes와 클러스터의 스토리지 구성이 담당합니다.
+
+=== 정적 프로비저닝
+
+정적 프로비저닝(Static Provisioning)은 클러스터 관리자가 사용할 스토리지를 미리 준비하고 이에 대응하는 ``PersistentVolume``을 직접 생성하는 방식입니다.
+
+[source,text]
+--------------------------
+관리자
+│
+├─ 실제 Storage 준비
+│
+└─ PersistentVolume 생성
+│
+▼
+사용자가 PVC 생성
+│
+▼
+조건이 일치하는 PV와 PVC가 연결(Bind)
+--------------------------
+
+예를 들어 관리자가 이미 준비되어 있는 NFS 디렉터리나 클라우드 디스크를 PV로 등록해 둘 수 있습니다.
+
+사용자가 PVC를 생성하면 Kubernetes는 요청한 용량, 접근 모드, StorageClass 등의 조건을 확인하여 적절한 PV와 PVC를 연결합니다.
+
+[source,text]
+---------------
+PVC
+request: 10Gi
+│
+│ 조건이 일치
+▼
+PV
+capacity: 20Gi
+│
+▼
+기존에 준비된 Storage
+---------------
+
+정적 프로비저닝에서는 **사용자가 요청하기 전에 관리자가 스토리지를 준비해야 한다**는 특징이 있습니다.
+
+=== 동적 프로비저닝
+
+동적 프로비저닝(Dynamic Provisioning)은 사용자가 PVC를 생성했을 때 필요한 스토리지를 **자동으로 생성하는 방식**입니다.
+
+이때 중요한 역할을 하는 리소스가 ``StorageClass``입니다.
+
+[source,text]
+----------
+
+사용자
+│
+│ PVC 생성
+▼
+PersistentVolumeClaim
+│
+│ StorageClass 참조
+▼
+StorageClass
+│
+│ CSI Provisioner
+▼
+실제 Storage 자동 생성
+│
+▼
+PersistentVolume 자동 생성
+│
+▼
+PVC와 PV 연결
+----------
+
+예를 들어 클러스터에 다음과 같은 StorageClass가 있다고 가정해 보겠습니다.
+
+[source,bash]
+----
+oc get storageclass
+----
+
+[source,text]
+---------------------------------------
+NAME                    PROVISIONER
+gp3-csi                 ebs.csi.aws.com
+---------------------------------------
+
+사용자는 실제 AWS EBS API나 Volume ID를 알 필요 없이 다음처럼 PVC를 요청할 수 있습니다.
+
+[source,yaml]
+-------------
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: my-data
+spec:
+  storageClassName: gp3-csi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+-------------
+
+PVC가 생성되면 StorageClass에 설정된 CSI Provisioner가 요청에 맞는 실제 스토리지를 생성하고, 이에 대응하는 PV도 자동으로 생성합니다.
+
+[source,text]
+--------------
+PVC: my-data
+10Gi 요청
+│
+▼
+StorageClass: gp3-csi
+│
+▼
+AWS EBS 10Gi 생성
+│
+▼
+PV 자동 생성
+│
+▼
+PVC ↔ PV Bound
+--------------
+
+클러스터에 **기본(Default) StorageClass**가 설정되어 있다면 PVC에서 ``storageClassName``을 직접 지정하지 않아도 기본 StorageClass가 사용될 수 있습니다.
+
+정리하면 다음과 같습니다.
+
+[source,text]
+--------
+**[정적 프로비저닝]**
+
+관리자가 Storage와 PV를 먼저 준비
+↓
+사용자가 PVC 요청
+↓
+PVC ↔ PV
+
+**[동적 프로비저닝]**
+
+사용자가 PVC 요청
+↓
+StorageClass
+↓
+Storage와 PV가 자동 생성
+↓
+PVC ↔ PV
+--------
+
+실제 Kubernetes/OpenShift 환경에서는 **StorageClass와 CSI를 이용한 동적 프로비저닝**이 널리 사용됩니다.
+
+이제 현재 OpenShift 클러스터에 어떤 StorageClass가 제공되고 있는지 확인하고, PVC를 생성하여 실제 영구 스토리지를 요청해 보겠습니다.
 
 [IMPORTANT]
 ====
