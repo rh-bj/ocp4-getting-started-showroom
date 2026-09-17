@@ -192,7 +192,7 @@ the-service   the-service-{user}-myspace.{openshift_cluster_ingress_domain}     
 
 별도의 호스트 이름을 지정하지 않으면 OpenShift의 Ingress Controller가 사용하는 도메인을 기반으로 Route의 호스트 이름이 결정됩니다. 일반적인 OpenShift 환경에서는 다음과 비슷한 형태를 볼 수 있습니다.
 
-[source,text]
+[source,bash,subs="+macros,+attributes"]
 ----
 <route-name>-<project-name>.apps.<cluster-domain>
 ----
@@ -201,7 +201,7 @@ the-service   the-service-{user}-myspace.{openshift_cluster_ingress_domain}     
 
 [#curl-services-route]
 [.console-input]
-[source, bash]
+[source,bash,subs="+macros,+attributes"]
 ----
 curl the-service-{user}-myspace.{openshift_cluster_ingress_domain}
 ----
@@ -209,7 +209,7 @@ curl the-service-{user}-myspace.{openshift_cluster_ingress_domain}
 또는 웹 브라우저에서 해당 주소에 접근해도 됩니다.
 
 [.console-output]
-[source,bash]
+[source,bash,subs="+macros,+attributes"]
 ----
 Supersonic Subatomic Java with Quarkus quarkus-demo-deployment-5979886fb7-gdtnz:3
 ----
