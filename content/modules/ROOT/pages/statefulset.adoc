@@ -3,7 +3,6 @@ include::vars.adoc[]
 include::_attributes.adoc[]
 :watch-terminal: 터미널 2
 
-///
 ``StatefulSet``은 **각 Pod에 고유하고 안정적인 식별자를 부여하면서 여러 Pod를 관리하는 컨트롤러**입니다.
 
 앞에서 살펴본 ``Deployment``가 일반적으로 서로 구분할 필요가 없는 동일한 Pod들을 관리한다면, StatefulSet이 생성하는 Pod에는 각각 고유한 이름과 순서가 부여됩니다.
@@ -43,7 +42,7 @@ mydb-1
 mydb-2
 ------
 
-이러한 이름을 기반으로 애플리케이션이 `mydb-0`을 초기화 인스턴스로 사용하거나, 각 Pod마다 서로 다른 역할을 부여하도록 구성할 수 있습니다.
+이러한 이름을 기반으로 애플리케이션이 ``mydb-0``을 초기화 인스턴스로 사용하거나, 각 Pod마다 서로 다른 역할을 부여하도록 구성할 수 있습니다.
 
 === StatefulSet과 Headless Service
 
@@ -53,12 +52,9 @@ StatefulSet에서는 각 Pod가 안정적인 네트워크 이름을 가질 수 �
 
 [source,text]
 ----------
-```
-          ┌─ myapp-0
-```
-
+                 ┌─ myapp-0
 Client → Service ─ myapp-1
-└─ myapp-2
+                 └─ myapp-2
 ----------
 
 반면 StatefulSet에서는 특정 Pod를 직접 식별해야 하는 경우가 있습니다.
@@ -225,7 +221,7 @@ NAME                     READY   STATUS    RESTARTS   AGE
 
 Pod 이름이 ``serviceName``에 ``-0``이 붙은 형태라는 점에 주목하세요. 첫 번째(``0``번째) 인스턴스이기 때문입니다. 이는 <<hostname-formula,위에서>> 설명한 대로입니다.
 
-이제 stateful set 자체를 살펴봅시다.
+이제 statefulset 자체를 살펴봅시다.
 
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
@@ -344,6 +340,9 @@ exit
 
 이렇게 headless service의 도움으로, StatefulSet과 headless service가 만들어내는 내부 DNS 이름을 사용해서 StatefulSet의 어떤 pod든 찾을 수 있습니다.
 
+
+
+
 == Exposing StatefulSets
 
 앞에서 생성한 StatefulSet은 각 Pod에 **안정적인 네트워크 식별자**를 제공하기 위해 ``quarkus``라는 Headless Service를 사용합니다.
@@ -378,39 +377,12 @@ Endpoints:                10.232.2.49:8080,10.233.4.26:8080,10.234.4.46:8080
 Session Affinity:         None
 Internal Traffic Policy:  Cluster
 Events:                   <none>
-----------------------------------
+------------------------------------------------
 
 즉, 일반적인 ClusterIP Service와 달리 다음과 같은 하나의 Service IP가 만들어지지 않습니다.
 Headless Service는 Service 자체의 가상 IP가 없고, 대신 DNS를 통해 backend Pod들의 endpoint 주소를 직접 알 수 있게 합니다.
 
-`quarkus` Service에 연결된 EndpointSlice를 확인해 보겠습니다.
-
-[.console-input]
-[source,bash,subs="+macros,+attributes"]
-----------------------------------------
-oc describe endpoints quarkus
--------------------------------------
-
-[.console-output]
-[source,bash,subs="+macros,+attributes"]
-----
-Name:         quarkus-statefulset
-Namespace:    myspace
-Labels:       app=quarkus-statefulset
-              service.kubernetes.io/headless=
-Annotations:  endpoints.kubernetes.io/last-change-trigger-time: 2021-07-20T04:45:21Z
-Subsets:
-  Addresses:          172.17.0.3,172.17.0.4,172.17.0.5
-  NotReadyAddresses:  <none>
-  Ports:
-    Name  Port  Protocol
-    ----  ----  --------
-    web   8080  TCP
-
-Events:  <none>
-----
-
-이름으로 pod에 접근할 수 있도록, 쿠버네티스는 모든 `StatefulSet` pod에 레이블을 부여하며, 이를 우리 service의 selector로 사용할 수 있습니다.
+그리고 statefulset을 만들면 이름으로 pod에 접근할 수 있도록, 쿠버네티스가 모든 `StatefulSet` pod에 레이블을 부여하게 되고, 이를 우리 service의 selector로 사용할 수도 있습니다.
 
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
@@ -434,19 +406,25 @@ Labels:       app=quarkus-statefulset
 Annotations:  <none>
 ----
 
-:quick-open-file: quarkus-statefulset-external-svc.yaml
-
-이 레이블을 이 특정 pod를 대상으로 하는 service의 selector로 사용할 수 있습니다. ``{quick-open-file}``을 살펴봅시다:
-
+이 레이블을 selector로 지정해서, 이 특정 pod를 대상으로 하는 service를 생성해보겠습니다. 
 
 [.console-output]
 [source,yaml,subs="+macros,+attributes"]
-.{quick-open-file}
 ----
-include::example$quarkus-statefulset-external-svc.yaml[]
+apiVersion: v1
+kind: Service
+metadata:
+  name: quarkus-statefulset-2
+  labels:
+    app: quarkus-statefulset
+spec:
+  ports:
+  - port: 8080
+    name: web
+  clusterIP: None
+  selector:
+    statefulset.kubernetes.io/pod-name: quarkus-statefulset-2 #<.>
 ----
-<.> 이 service가 LoadBalancer를 통해 노출되어야 함을 나타냅니다.
-<.> 트래픽을 노드로 직접 라우팅해서 불필요한 홉을 방지합니다.
 <.> 쿠버네티스 StatefulSet 기능이 자동으로 제공하는 레이블을 활용하는 selector입니다.
 
 service를 살펴봤으니 이제 생성해 봅시다:
@@ -459,14 +437,14 @@ apiVersion: v1
 kind: Service
 metadata:
   name: quarkus-statefulset-2
+  labels:
+    app: quarkus-statefulset
 spec:
-  type: LoadBalancer
-  externalTrafficPolicy: Local
-  selector:
-    statefulset.kubernetes.io/pod-name: quarkus-statefulset-2
   ports:
   - port: 8080
     name: web
+  selector:
+    statefulset.kubernetes.io/pod-name: quarkus-statefulset-2
 EOF
 ----
 
@@ -475,12 +453,7 @@ EOF
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-IP=$(oc get service quarkus-statefulset-2 -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
-----
-
-[.console-input]
-[source,bash,subs="+macros,+attributes"]
-----
+IP=$(oc get service quarkus-statefulset-2 -o jsonpath="{.spec.clusterIP}")
 PORT=$(oc get service quarkus-statefulset-2 -o jsonpath="{.spec.ports[*].port}")
 ----
 
@@ -491,15 +464,6 @@ PORT=$(oc get service quarkus-statefulset-2 -o jsonpath="{.spec.ports[*].port}")
 curl $IP:$PORT
 ----
 
-
-[.console-output]
-[source,bash,subs="+macros,+attributes,+quotes"]
-----
-Supersonic Subatomic Java with Quarkus quarkus-statefulset-2:1 #<.>
-----
-<.> `quarkus-statefulset-2`의 호스트 이름을 확인하세요.  이는 포드가 예측 가능한 호스트 이름을 얻을 수 있도록 처음에 상태 저장 세트를 사용한 이유 중 일부입니다.
-
-
 다음과 같은 응답을 받게 됩니다.
 
 [.console-output]
@@ -507,7 +471,9 @@ Supersonic Subatomic Java with Quarkus quarkus-statefulset-2:1 #<.>
 ----
 Supersonic Subatomic Java with Quarkus quarkus-statefulset-2:1 #<.>
 ----
-<.> 호스트 이름이 ``quarkus-statefulset-2``인 것에 주목하세요. 이것이 애초에 stateful set을 사용한 이유의 일부로, pod가 예측 가능한 호스트 이름을 갖도록 하기 위해서입니다.
+<.> 호스트 이름이 ``quarkus-statefulset-2``인 것에 주목하세요. 이것이 애초에 stateful set을 사용한 이유 중 하나로, pod가 예측 가능한 호스트 이름을 갖도록 하기 위해서입니다.
+
+
 
 == 스케일 다운과 정리
 
@@ -535,12 +501,12 @@ quarkus-statefulset-1   1/1     Running       0          7m49s
 --
 ====
 
-stateful set과 service를 함께 사용할 때는 이로 인해 문제가 생길 수 있다는 점에 주의하세요. 위에서 만든 service는 stateful set 안의 바로 그 pod를 참조하고 있었다는 것을 기억하세요. 지금 접근을 시도하면
+stateful set과 service를 함께 사용할 때는 이로 인해 문제가 생길 수 있다는 점에 주의하세요. 위에서 만든 service는 stateful set 안의 바로 그 pod를 참조하고 있었다는 것을 기억하세요. 지금 접근을 시도하면,
 
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-curl pass:[${IP}:${PORT}]
+curl ${IP}:${PORT}
 ----
 
 다음과 같은 오류를 만나게 될 것입니다.
@@ -558,6 +524,6 @@ curl: (7) Failed to connect to 192.168.86.58 port 31834: Connection refused
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc delete -f apps/kubefiles/quarkus-statefulset.yaml
-oc delete -f apps/kubefiles/quarkus-statefulset-external-svc.yaml
+oc delete sts quarkus-statefulset
+oc delete svc quarkus quarkus-statefulset-2
 ----
