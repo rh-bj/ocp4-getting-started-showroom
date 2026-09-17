@@ -136,7 +136,7 @@ OpenShift에서는 **Route**를 사용하여 Service를 클러스터 외부에 �
 
 Route를 생성하면 애플리케이션에 접근할 수 있는 **호스트 이름(URL)** 이 만들어지고, OpenShift의 Router가 이 주소로 들어오는 요청을 해당 Service로 전달합니다.
 
-[source,text]
+[source,text,subs="+macros,+attributes"]
 -------------------------------------------
 외부 사용자
 │
@@ -181,7 +181,7 @@ oc get routes
 ----
 
 [.console-output]
-[source,bash]
+[source,bash,subs="+macros,+attributes"]
 ----
 NAME          HOST/PORT                                                       PATH   SERVICES      PORT   TERMINATION   WILDCARD
 the-service   the-service-{user}-myspace.{openshift_cluster_ingress_domain}          the-service   8080                 None
