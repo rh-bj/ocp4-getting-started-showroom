@@ -4,3 +4,12 @@
 :set-namespace: myspace
 
 include::partial$new-terminal.adoc[]
+
+
+
+===========
+
+그리고 loop 스크립트를 실행합니다:
+
+:curl-loop-sleep-time: 1
+include::partial$loop.adoc[]

@@ -5,6 +5,8 @@ Blue/Green 배포에 대한 설명과 역사는 https://martinfowler.com/bliki/B
 
 xref:service-magic.adoc[Service의 마법] 장에서 확인했듯, 쿠버네티스 Service는 레이블 셀렉터로만 대상을 찾습니다. 이 성질을 이용하면 Blue/Green 전환을 아주 쉽게 구현할 수 있습니다: Blue와 Green 두 Deployment를 서로 다른 레이블로 동시에 띄워 두고, 하나의 Service가 어느 레이블을 가리킬지만 바꿔주면 됩니다.
 
+* *Terminal#1에서 작업*
+
 올바른 네임스페이스에 있는지 확인합니다:
 
 :section-k8s: services
@@ -83,14 +85,37 @@ oc scale deployment/myboot --replicas=2
 oc get pods -w --show-labels
 ----
 
-이제 이 V1(Blue)을 가리키는 Service를 배포합니다. 이 Service의 셀렉터는 ``app=myboot``로, 지금은 V1 Pod들만 가리키고 있습니다:
+파드가 잘 뜬 것을 확인했다면, [ctrl+c]로 취소하고 이제 이 V1(Blue)을 가리키는 Service를 배포합니다. 
+이 Service의 셀렉터는 ``app=myboot``로, 지금은 V1 Pod들만 가리키고 있습니다:
 
 [#deploy-service-blue-green]
 [.console-input]
 [source, bash]
 ----
-oc apply -f apps/kubefiles/myboot-service.yml
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: myboot
+  labels:
+    app: myboot
+spec:
+  ports:
+  - name: http
+    port: 8080
+  selector:
+    app: myboot
+EOF
 ----
+
+* *Terminal#2에서 작업*
+
+올바른 네임스페이스에 있는지 확인합니다:
+
+:section-k8s: services
+:set-namespace: myspace
+
+include::partial$new-terminal.adoc[]
 
 :section-k8s: bluegreen
 :service-exposed: myboot
@@ -98,15 +123,48 @@ include::partial$env-curl.adoc[]
 
 그리고 loop 스크립트를 실행합니다:
 
+:curl-loop-sleep-time: 1
 include::partial$loop.adoc[]
 
+
 이제 Green 역할을 할 V2를 __별도의 Deployment__로 배포합니다. 이 Deployment의 Pod들은 ``app=myboot-next``라는 다른 레이블을 갖도록 정의되어 있어서, 아직 ``app=myboot``를 바라보는 기존 Service의 대상에는 포함되지 않습니다. 즉, V1에 실제로 트래픽을 받는 동안에도 V2를 안전하게 미리 띄우고 검증할 수 있습니다:
+
+* *Terminal#1에서 작업*
 
 [#deploy-v2-blue-green]
 [.console-input]
 [source, bash]
 ----
-oc apply -f apps/kubefiles/myboot-deployment-resources-limits-v2.yml
+cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: myboot-next
+  name: myboot-next
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: myboot-next
+  template:
+    metadata:
+      labels:
+        app: myboot-next
+    spec:
+      containers:
+      - name: myboot
+        image: quay.io/rhdevelopers/myboot:v2
+        ports:
+          - containerPort: 8080
+        resources:
+          requests:
+            memory: "300Mi"
+            cpu: "250m" # 1/4 core
+          limits:
+            memory: "900Mi"
+            cpu: "1000m" # 1 core
+EOF
 ----
 
 Service를 거치지 않고 V2 Pod에 직접 ``exec``로 들어가 curl을 실행해서, 전환하기 전에 새 코드가 제대로 동작하는지 미리 검증해 봅시다:
@@ -134,6 +192,8 @@ Jambo from Spring Boot! 1 on myboot-next-66b68c6659-ftcjr
 oc patch svc/myboot -p '{"spec":{"selector":{"app":"myboot-next"}}}'
 ----
 
+* *Terminal#2에서 확인*
+
 [.console-output]
 [source,bash]
 ----
@@ -144,6 +204,8 @@ Jambo from Spring Boot! 4 on myboot-next-66b68c6659-ftcjr
 ----
 
 프랑스식(green)보다 하와이식(blue)을 더 선호한다고 판단하여 되돌립니다. Blue/Green 배포의 가장 큰 장점이 바로 이것입니다 — V1 Pod들을 지운 적이 없으므로, 셀렉터를 원래대로 되돌리기만 하면 그 즉시 롤백이 끝납니다:
+
+* *Terminal#1에서 작업*
 
 [#patch-service-blue]
 [.console-input]
