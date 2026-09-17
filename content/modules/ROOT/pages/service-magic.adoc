@@ -183,42 +183,35 @@ Service를 describe해서 `Endpoints` 항목이 어떻게 표시되는지 확인
 oc describe service my-service
 ----
 
-Service를 만들 때마다 쿠버네티스는 __EndpointSlice__라는 객체를 자동으로 함께 관리합니다. Endpoints는 그 Service의 셀렉터와 일치하는 Pod들의 IP:Port 목록으로, 실제 트래픽이 전달될 대상 목록입니다. Service의 셀렉터에 맞는 Pod가 하나도 없으니, Endpoints도 비어 있을 것입니다:
+Service를 만들 때마다 쿠버네티스는 __EndpointSlice__라는 객체를 자동으로 함께 관리합니다. EndpointSlice는 그 Service의 셀렉터와 일치하는 Pod들의 IP:Port 목록으로, 실제 트래픽이 전달될 대상 목록입니다. Service의 셀렉터에 맞는 Pod가 하나도 없으니, EndpointSlice도 비어 있을 것입니다:
 
 [#get-endpoints-myservice]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc get endpoints
+oc get endpointslice
 ----
 
 [.console-output]
 [source,bash]
 ----
-NAME         ENDPOINTS   AGE
-my-service   <none>      2m6s
+NAME               ADDRESSTYPE   PORTS     ENDPOINTS   AGE
+my-service-4lt5p   IPv4          <unset>   <unset>     96s
 ----
 
-또는 다음 명령으로 service 엔드포인트만 추출해 볼 수 있는데, 결과가 없을 것입니다:
+endpointslice가 비어 있는데도 실제로 요청을 보내면 어떻게 되는지 직접 확인해 봅시다. service에 접근하기 위해 ``IP``와 `PORT` 환경 변수를 초기화합니다:
 
-[#get-endpoints1]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc get endpoints my-service -o jsonpath='{.subsets[].addresses[*].ip}{"\n"}'
+IP=$(oc get service {tmp-service-exposed} -o jsonpath="{.spec.clusterIP}")
+PORT=$(oc get service {tmp-service-exposed} -o jsonpath="{.spec.ports[*].port}")
 ----
-
-Endpoints가 비어 있는데도 실제로 요청을 보내면 어떻게 되는지 직접 확인해 봅시다. service에 접근하기 위해 ``IP``와 `PORT` 환경 변수를 초기화합니다:
-
-:section-k8s: servicemagic
-:service-exposed: my-service
-include::partial$env-curl.adoc[]
 
 그리고 loop 스크립트를 실행합니다:
 
+:curl-loop-sleep-time: 1
 include::partial$loop.adoc[]
-
-로드 밸런서의 특성에 따라 클라이언트는 **연결 거부**를 겪거나, 타임아웃되기 전까지 **지연**을 겪을 수 있습니다.
 
 [.console-output]
 [source,bash]
@@ -227,7 +220,11 @@ curl: (7) Failed to connect to 35.224.233.213 port 8000: Connection refused
 curl: (7) Failed to connect to 35.224.233.213 port 8000: Connection refused
 ----
 
+NOTE: 현재 Service가 참조하는 label을 가진 Pod가 없기 때문에 curl은 실패합니다.
+
 이제 `mypython` Pod에 Service가 찾고 있는 레이블(`inservice=mypods`)을 붙여 봅시다. Deployment를 다시 배포하거나 Service를 수정하는 것이 아니라, Pod에 레이블 하나만 추가하는 것으로 충분합니다. loop 창을 지켜보면, 레이블을 붙이는 즉시 연결 거부가 멈추고 응답이 오기 시작하는 것을 볼 수 있을 것입니다:
+
+* *Terminal#3에서 작업*
 
 [#label-mypython]
 [.console-input]
@@ -235,6 +232,8 @@ curl: (7) Failed to connect to 35.224.233.213 port 8000: Connection refused
 ----
 oc label pod -l app=mypython inservice=mypods
 ----
+
+* *Terminal#1에서 확인*
 
 [.console-output]
 [source,bash]
@@ -247,6 +246,8 @@ Python Hello on mypython-deployment-6874f84d85-2kpjl
 
 이번에는 `mynode` Pod에도 같은 레이블을 붙여 봅시다. ``mypython``의 레이블은 그대로 두었으므로, 이제 두 Pod __모두__ Service의 대상이 됩니다. loop 창에는 Python과 Node의 응답이 섞여서 나타날 것입니다:
 
+* *Terminal#3에서 작업*
+
 [#label-mynode]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
@@ -254,6 +255,7 @@ Python Hello on mypython-deployment-6874f84d85-2kpjl
 oc label pod -l app=mynode inservice=mypods
 ----
 
+* *Terminal#1에서 확인*
 [.console-output]
 [source,bash]
 ----
@@ -268,6 +270,8 @@ Python Hello on mypython-deployment-6874f84d85-2kpjl
 
 같은 방식으로 ``mygo``도 추가해 봅시다. 이제 세 애플리케이션이 모두 하나의 Service 뒤에서 함께 트래픽을 나눠 받게 됩니다:
 
+* *Terminal#3에서 작업*
+
 [#label-mygo]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
@@ -275,6 +279,7 @@ Python Hello on mypython-deployment-6874f84d85-2kpjl
 oc label pod -l app=mygo inservice=mypods
 ----
 
+* *Terminal#1에서 확인*
 [.console-output]
 [source,bash]
 ----
@@ -285,13 +290,13 @@ Python Hello on mypython-deployment-6874f84d85-2kpjl
 Python Hello on mypython-deployment-6874f84d85-2kpjl
 ----
 
-이제 Endpoints를 다시 확인해 보면, 세 Pod의 IP가 모두 들어 있을 것입니다:
+이제 endpointslice를 다시 확인해 보면, 세 Pod의 IP가 모두 들어 있을 것입니다:
 
 [#get-endpoints2]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc get endpoints my-service -o jsonpath='{.subsets[].addresses[*].ip}{"\n"}'
+oc get endpointslice
 ----
 
 [.console-output]
@@ -322,7 +327,7 @@ oc label pod -l app=mypython inservice-
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc get endpoints my-service -o jsonpath='{.subsets[].addresses[*].ip}{"\n"}'
+oc get endpointslice
 ----
 
 [.console-output]
@@ -341,3 +346,5 @@ oc get endpoints my-service -o jsonpath='{.subsets[].addresses[*].ip}{"\n"}'
 ----
 oc delete project {user}-funstuff
 ----
+
+네임스페이스(프로젝트)가 완전히 삭제되기까지 시간이 걸릴 수도 있습니다. 

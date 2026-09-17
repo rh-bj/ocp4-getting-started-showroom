@@ -419,5 +419,5 @@ Supersonic Subatomic Java with Quarkus myapp-76d84b5f46-jlzs7:4
 [source,bash,subs="+macros,+attributes"]
 ----
 oc delete project {user}-mystuff
-oc config set-context --current --namespace=wksp-{user}
+oc project wksp-{user}
 ----

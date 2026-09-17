@@ -5,12 +5,12 @@ Blue/Green 배포에 대한 설명과 역사는 https://martinfowler.com/bliki/B
 
 xref:service-magic.adoc[Service의 마법] 장에서 확인했듯, 쿠버네티스 Service는 레이블 셀렉터로만 대상을 찾습니다. 이 성질을 이용하면 Blue/Green 전환을 아주 쉽게 구현할 수 있습니다: Blue와 Green 두 Deployment를 서로 다른 레이블로 동시에 띄워 두고, 하나의 Service가 어느 레이블을 가리킬지만 바꿔주면 됩니다.
 
-올바른 네임스페이스에 있는지 확인합니다.
+올바른 네임스페이스에 있는지 확인합니다:
 
-:section-k8s: bluegreen
-:set-namespace: {user}-myspace
+:section-k8s: services
+:set-namespace: myspace
 
-include::partial$set-context.adoc[]
+include::partial$new-terminal.adoc[]
 
 다른 것이 배포되어 있지 않은지 확인합니다:
 

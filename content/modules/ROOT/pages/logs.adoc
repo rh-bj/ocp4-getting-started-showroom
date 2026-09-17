@@ -2,11 +2,16 @@
 include::vars.adoc[]
 
 쿠버네티스/OpenShift 환경에서는 여러 노드와 Pod에서 생성되는 로그를 개별적으로 확인하는 것뿐만 아니라, **클러스터 전체의 로그를 중앙에서 수집하고 검색할 수 있도록 구성**하는 것이 일반적입니다.
-OpenShift에서는 *Red Hat OpenShift Logging*을 사용하여 애플리케이션, 인프라, 감사(Audit) 로그를 수집하고 원하는 로그 저장소로 전달할 수 있습니다. 최신 OpenShift Logging에서는 **Vector**가 로그 수집기(Collector)로 사용되며, `ClusterLogForwarder`를 통해 어떤 로그를 어디로 전달할지 설정합니다.
+
+OpenShift에서는 *Red Hat OpenShift Logging*을 사용하여 애플리케이션, 인프라, 감사(Audit) 로그를 수집하고 원하는 로그 저장소로 전달할 수 있습니다. 최신 OpenShift Logging에서는 **Vector**가 로그 수집기(Collector)로 사용되며, ``ClusterLogForwarder``를 통해 어떤 로그를 어디로 전달할지 설정합니다.
+
 수집한 로그를 클러스터 내부에서 저장하고 검색하려는 경우에는 **LokiStack**을 사용할 수 있으며, OpenShift 웹 콘솔의 Observability 화면에서 로그를 조회할 수도 있습니다. 필요에 따라 Splunk, Elasticsearch, 클라우드 로깅 서비스 등의 외부 로그 시스템으로 전달하는 구성도 가능합니다.
 
+
 여기서는 개발자가 Pod 안에서 실행 중인 애플리케이션의 동작을 확인하는 기본적인 방법에 초점을 맞춥니다.
+
 컨테이너 환경에서는 애플리케이션 로그를 컨테이너 내부의 특정 파일에만 저장하기보다는, 표준 출력(stdout)과 표준 오류(stderr)로 출력하는 방식​이 일반적으로 사용됩니다. 이렇게 하면 컨테이너가 어느 노드에서 실행되든 Kubernetes/OpenShift가 로그를 일관된 방식으로 수집하고 조회할 수 있습니다.
+
 `oc logs` 명령을 사용하면 실행 중인 컨테이너가 stdout과 stderr로 출력한 로그를 확인할 수 있습니다. 따라서 애플리케이션이 정상적으로 시작되었는지, 요청을 어떻게 처리하고 있는지, 오류가 발생했는지 등을 빠르게 확인할 수 있습니다.
 
 먼저 새로운 네임스페이스를 먼저 생성합니다. 
@@ -15,20 +20,6 @@ OpenShift에서는 *Red Hat OpenShift Logging*을 사용하여 애플리케이�
 [source,bash,subs="+macros,+attributes"]
 ----
 oc new-project {user}-logs
-----
-
-[.console-output]
-[source,bash,subs="+macros,+attributes"]
-----
-Now using project "{user}-logs" on server "https://172.231.0.1:443".
-
-You can add applications to this project with the 'new-app' command. For example, try:
-
-    oc new-app rails-postgresql-example
-
-to build a new example application in Ruby. Or use kubectl to deploy a simple Kubernetes application:
-
-    kubectl create deployment hello-node --image=registry.k8s.io/e2e-test-images/agnhost:2.43 -- /agnhost serve-hostname
 ----
 
 실습에 사용할 Deployment를 하나 배포합니다:
@@ -110,9 +101,6 @@ oc logs <파드이름>
 
 IMPORTANT: <파드이름> 부분은 실제로 조회된 Pod 이름 중 하나로 변경하여 입력하세요.
 
-
-----
-
 [.console-output]
 [source]
 ----
@@ -123,7 +111,6 @@ IMPORTANT: <파드이름> 부분은 실제로 조회된 Pod 이름 중 하나로
   '  |____| .__|_| |_|_| |_\__, | / / / /
  =========|_|==============|___/=/_/_/_/
  :: Spring Boot ::        (v1.5.3.RELEASE)
-
 ----
 
 `-f` 파라미터로 로그를 실시간으로 따라갈 수 있습니다:
