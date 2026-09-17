@@ -28,6 +28,10 @@ EOF
 
 ===========
 
+cat <<EOF | oc delete -f -
+
+EOF
+
 * *Terminal#1에서 수행*
 
 

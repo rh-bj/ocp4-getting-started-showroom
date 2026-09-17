@@ -3,16 +3,78 @@ include::vars.adoc[]
 include::_attributes.adoc[]
 :watch-terminal: 터미널 2
 
-``StatefulSet``은 자신이 관리하는 Pod에 고유한 식별성을 부여합니다.
-``StatefulSet``은 애플리케이션이 Pod의 (재)스케줄링 전반에 걸쳐 고유한 네트워크 식별자나 영구 스토리지를 필요로 할 때, 또는 배포와 스케일링의 순서에 대한 보장이 필요할 때 특히 유용합니다.
+///
+``StatefulSet``은 **각 Pod에 고유하고 안정적인 식별자를 부여하면서 여러 Pod를 관리하는 컨트롤러**입니다.
 
-``StatefulSet``을 사용하는 가장 대표적인 예시 중 하나는 프라이머리/세컨더리 서버(예: 데이터베이스 클러스터)를 배포해야 하는 경우로, 이때는 클러스터를 시작하기 전에 각 서버의 호스트 이름을 미리 알아야 합니다.
-또한 스케일 업/다운을 할 때도 정해진 순서대로 진행하고 싶을 것입니다(예: 프라이머리 노드를 먼저 시작하고 그다음에 세컨더리 노드를 시작).
+앞에서 살펴본 ``Deployment``가 일반적으로 서로 구분할 필요가 없는 동일한 Pod들을 관리한다면, StatefulSet이 생성하는 Pod에는 각각 고유한 이름과 순서가 부여됩니다.
 
-[IMPORTANT]
-====
-``StatefulSet``에 접근하려면 표준 쿠버네티스 __service__가 아니라 쿠버네티스 __Headless Service__가 필요합니다. 이에 대해서는 아래에서 더 자세히 다룹니다.
-====
+예를 들어 replicas를 3개로 설정하면 다음과 같은 이름의 Pod가 생성됩니다.
+
+[source,text]
+-------
+myapp-0
+myapp-1
+myapp-2
+-------
+
+이 이름은 단순히 우연히 생성된 이름이 아니라 각 Pod의 **고유한 식별자(ordinal)** 입니다. Pod가 장애로 인해 다시 생성되더라도 동일한 식별자를 유지합니다.
+
+[source,text]
+-------------------------------
+myapp-0  → 삭제 → 다시 생성 → myapp-0
+myapp-1  → 삭제 → 다시 생성 → myapp-1
+myapp-2  → 삭제 → 다시 생성 → myapp-2
+-------------------------------
+
+StatefulSet은 다음과 같이 각 Pod의 상태와 식별성이 중요한 애플리케이션에 유용합니다.
+
+* 각 Pod가 **고유하고 안정적인 네트워크 이름**을 가져야 하는 경우
+* Pod가 다시 생성되더라도 **자신만의 영구 스토리지**를 계속 사용해야 하는 경우
+* Pod를 생성하거나 삭제할 때 **일정한 순서**가 필요한 경우
+
+대표적인 예가 데이터베이스나 분산 시스템입니다.
+
+예를 들어 애플리케이션이 첫 번째 Pod와 두 번째 Pod를 서로 구분해야 한다면 다음처럼 안정적인 이름을 활용할 수 있습니다.
+
+[source,text]
+------
+mydb-0
+mydb-1
+mydb-2
+------
+
+이러한 이름을 기반으로 애플리케이션이 `mydb-0`을 초기화 인스턴스로 사용하거나, 각 Pod마다 서로 다른 역할을 부여하도록 구성할 수 있습니다.
+
+=== StatefulSet과 Headless Service
+
+StatefulSet에서는 각 Pod가 안정적인 네트워크 이름을 가질 수 있도록 일반적으로 **Headless Service**를 함께 사용합니다.
+
+일반 Service는 여러 Pod를 하나의 주소 뒤에 묶어 사용하기 때문에 클라이언트 입장에서는 어떤 Pod에 연결되는지 알 필요가 없습니다.
+
+[source,text]
+----------
+```
+          ┌─ myapp-0
+```
+
+Client → Service ─ myapp-1
+└─ myapp-2
+----------
+
+반면 StatefulSet에서는 특정 Pod를 직접 식별해야 하는 경우가 있습니다.
+
+Headless Service를 사용하면 각각의 StatefulSet Pod에 대해 안정적인 DNS 이름을 사용할 수 있습니다.
+
+[source,text]
+----------------------
+myapp-0.<service-name>
+myapp-1.<service-name>
+myapp-2.<service-name>
+----------------------
+
+즉, Headless Service의 목적은 여러 Pod를 하나의 주소로 감추는 것이 아니라 **각 Pod를 개별적으로 찾을 수 있도록 네트워크 식별자를 제공하는 것**입니다.
+
+이제 StatefulSet을 직접 생성하면서 이러한 동작을 확인해 보겠습니다.
 
 == 준비
 
@@ -20,12 +82,9 @@ include::_attributes.adoc[]
 
 올바른 네임스페이스에 있는지 확인합니다:
 
-:section-k8s: stateful
-:set-namespace: {user}-myspace
-
-include::partial$namespace-setup-tip.adoc[]
-
-include::partial$set-context.adoc[]
+:section-k8s: volumes
+:set-namespace: myspace
+include::partial$new-terminal.adoc[]
 
 === 터미널 지켜보기
 
@@ -41,18 +100,18 @@ StatefulSet은 쿠버네티스의 `StatefulSet` 리소스를 사용해서 생성
 
 [source, yaml]
 ----
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: quarkus-statefulset
   labels:
     app: quarkus-statefulset
 spec:
-  serviceName: "quarkus" # <.>
-  replicas: 2
   selector:
     matchLabels:
       app: quarkus-statefulset
+  serviceName: "quarkus" # <.>
+  replicas: 1
   template:
     metadata:
       labels:
@@ -63,7 +122,7 @@ spec:
         image: quay.io/rhdevelopers/quarkus-demo:v1
         ports:
         - containerPort: 8080
-          name: web
+          name: web    
 ----
 <.> ``serviceName``은 이 ``StatefulSet``을 관장하는 (headless) service의 이름입니다. 이 service는 StatefulSet보다 먼저 존재해야 하며, 세트의 네트워크 식별성을 책임집니다.
 
@@ -106,7 +165,46 @@ spec:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc apply -f apps/kubefiles/quarkus-statefulset.yaml
+cat <<EOF | oc apply -f -
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: quarkus-statefulset
+  labels:
+    app: quarkus-statefulset
+spec:
+  selector:
+    matchLabels:
+      app: quarkus-statefulset
+  serviceName: "quarkus"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: quarkus-statefulset
+    spec:
+      containers:
+      - name: quarkus-statefulset
+        image: quay.io/rhdevelopers/quarkus-demo:v1
+        ports:
+        - containerPort: 8080
+          name: web
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quarkus
+  labels:
+    app: quarkus-statefulset
+spec:
+  ports:
+  - port: 8080
+    name: web
+  clusterIP: None
+  selector:
+    app: quarkus-statefulset
+---
+EOF
 ----
 
 그러면 watch 터미널에서 다음과 같은 내용을 확인할 수 있습니다.
@@ -248,41 +346,50 @@ exit
 
 == Exposing StatefulSets
 
-우리의 stateful set은 headless service를 사용해야 했기 때문에, 클러스터 __외부__에서 pod에 접근할 때 사용할 외부 IP가 할당되지 않는다는 것을 알 수 있습니다.
+앞에서 생성한 StatefulSet은 각 Pod에 **안정적인 네트워크 식별자**를 제공하기 위해 ``quarkus``라는 Headless Service를 사용합니다.
+Headless Service는 `spec.clusterIP` 값이 ``None``으로 설정되어 있습니다.
+
+먼저 우리가 생성한 Service를 확인해 보겠습니다.
 
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
-----
-oc describe svc quarkus-statefulset
-----
+----------------------------------------
+oc describe svc quarkus
+----------------------------------------
+
+출력에서 다음과 같이 ``IP``와 ``IPs`` 값이 ``None``으로 표시되는 것을 확인할 수 있습니다.
 
 [.console-output]
-[source,bash,subs="+macros,+attributes,+quotes"]
-----
-Name:              quarkus-statefulset
-Namespace:         myspace
-Labels:            app=quarkus-statefulset
-Annotations:       <none>
-Selector:          app=quarkus-statefulset
-Type:              ClusterIP
-IP Family Policy:  SingleStack
-IP Families:       IPv4
-#IP:                None#
-#IPs:               None#
-Port:              web  8080/TCP
-TargetPort:        8080/TCP
-Endpoints:         172.17.0.3:8080,172.17.0.4:8080,172.17.0.5:8080
-Session Affinity:  None
-Events:            <none>
-----
+[source,text,subs="+macros,+attributes,+quotes"]
+------------------------------------------------
+Name:                     quarkus
+Namespace:                myspace
+Labels:                   app=quarkus-statefulset
+Annotations:              <none>
+Selector:                 app=quarkus-statefulset
+Type:                     ClusterIP
+IP Family Policy:         SingleStack
+IP Families:              IPv4
+IP:                       None
+IPs:                      None
+Port:                     web  8080/TCP
+TargetPort:               8080/TCP
+Endpoints:                10.232.2.49:8080,10.233.4.26:8080,10.234.4.46:8080
+Session Affinity:         None
+Internal Traffic Policy:  Cluster
+Events:                   <none>
+----------------------------------
 
-대신 (내부) 엔드포인트만 할당됩니다.
+즉, 일반적인 ClusterIP Service와 달리 다음과 같은 하나의 Service IP가 만들어지지 않습니다.
+Headless Service는 Service 자체의 가상 IP가 없고, 대신 DNS를 통해 backend Pod들의 endpoint 주소를 직접 알 수 있게 합니다.
+
+`quarkus` Service에 연결된 EndpointSlice를 확인해 보겠습니다.
 
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
-----
-oc describe endpoints quarkus-statefulset
-----
+----------------------------------------
+oc describe endpoints quarkus
+-------------------------------------
 
 [.console-output]
 [source,bash,subs="+macros,+attributes"]
@@ -303,7 +410,7 @@ Subsets:
 Events:  <none>
 ----
 
-이는 어느 정도 당연한데, ``StatefulSet``을 사용하는 핵심 목적이 일반(headless가 아닌) ``Service``에 의해 추상화되는 대신 예측 가능한 이름으로 특정 pod를 참조할 수 있게 하는 것이기 때문입니다. 이름으로 pod에 접근할 수 있도록, 쿠버네티스는 모든 `StatefulSet` pod에 레이블을 부여하며, 이를 우리 service의 selector로 사용할 수 있습니다.
+이름으로 pod에 접근할 수 있도록, 쿠버네티스는 모든 `StatefulSet` pod에 레이블을 부여하며, 이를 우리 service의 selector로 사용할 수 있습니다.
 
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
@@ -331,7 +438,6 @@ Annotations:  <none>
 
 이 레이블을 이 특정 pod를 대상으로 하는 service의 selector로 사용할 수 있습니다. ``{quick-open-file}``을 살펴봅시다:
 
-include::partial$tip_vscode_quick_open.adoc[]
 
 [.console-output]
 [source,yaml,subs="+macros,+attributes"]
@@ -348,13 +454,51 @@ service를 살펴봤으니 이제 생성해 봅시다:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc apply -f apps/kubefiles/quarkus-statefulset-external-svc.yaml
+cat <<EOF | oc create -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: quarkus-statefulset-2
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    statefulset.kubernetes.io/pod-name: quarkus-statefulset-2
+  ports:
+  - port: 8080
+    name: web
+EOF
 ----
 
-한편, 메인 터미널에서 요청을 보냅니다:
+그 사이에 터미널 1에서 요청을 보냅니다.
 
-:service-exposed: quarkus-statefulset-2
-include::partial$env-curl.adoc[]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+IP=$(oc get service quarkus-statefulset-2 -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
+----
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+PORT=$(oc get service quarkus-statefulset-2 -o jsonpath="{.spec.ports[*].port}")
+----
+
+[#get-config-configmaps]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+curl $IP:$PORT
+----
+
+
+[.console-output]
+[source,bash,subs="+macros,+attributes,+quotes"]
+----
+Supersonic Subatomic Java with Quarkus quarkus-statefulset-2:1 #<.>
+----
+<.> `quarkus-statefulset-2`의 호스트 이름을 확인하세요.  이는 포드가 예측 가능한 호스트 이름을 얻을 수 있도록 처음에 상태 저장 세트를 사용한 이유 중 일부입니다.
+
 
 다음과 같은 응답을 받게 됩니다.
 

@@ -18,11 +18,9 @@ include::_attributes.adoc[]
 올바른 네임스페이스에 있는지 확인합니다:
 
 :section-k8s: resource
-:set-namespace: {user}-myspace
+:set-namespace: myspace
 
-include::partial$namespace-setup-tip.adoc[]
-
-include::partial$set-context.adoc[]
+include::partial$new-terminal.adoc[]
 
 === 터미널 지켜보기
 
@@ -37,8 +35,6 @@ include::partial$watching-pods-with-nodes.adoc[]
 :quick-open-file: whalesay-job.yaml
 
 Job은 쿠버네티스의 `Job` 리소스를 사용해서 생성합니다. 하나를 살펴보기 위해 ``{quick-open-file}``을 열어 보세요. 이 파일에서 눈여겨볼 부분은 다음과 같습니다:
-
-include::partial$tip_vscode_quick_open.adoc[]
 
 [source, yaml]
 .{quick-open-file}
@@ -55,7 +51,20 @@ include::example$whalesay-job.yaml[]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc apply -f apps/kubefiles/whalesay-job.yaml
+cat <<EOF | oc apply -f -
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: whale-say-job 
+spec:
+  template:
+    spec:
+      containers:
+      - name: whale-say-container
+        image: docker/whalesay
+        command: ["cowsay","Hello DevNation"]
+      restartPolicy: Never
+EOF
 ----
 --
 ====
@@ -154,7 +163,20 @@ oc logs \
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc delete -f apps/kubefiles/whalesay-job.yaml
+cat <<EOF | oc delete -f -
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: whale-say-job 
+spec:
+  template:
+    spec:
+      containers:
+      - name: whale-say-container
+        image: docker/whalesay
+        command: ["cowsay","Hello DevNation"]
+      restartPolicy: Never
+EOF
 ----
 --
 ====
@@ -165,8 +187,6 @@ oc delete -f apps/kubefiles/whalesay-job.yaml
 :quick-open-file: whalesay-cronjob.yaml
 
 CronJob은 쿠버네티스의 `CronJob` 리소스를 사용해서 정의합니다. ``cronjob``이라는 이름은 리눅스에서 유래한 것으로, 한 번 또는 반복적으로 실행되도록 예약된 일종의 배치 프로세스를 나타냅니다. 이 개념이 쿠버네티스에서는 `{quick-open-file}` 파일에서 볼 수 있듯이 다음과 같이 구현됩니다:
-
-include::partial$tip_vscode_quick_open.adoc[]
 
 [source, yaml]
 .{quick-open-file}
@@ -184,7 +204,26 @@ include::example$whalesay-cronjob.yaml[]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc apply -f apps/kubefiles/whalesay-cronjob.yaml
+cat <<EOF | oc apply -f -
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: whale-say-cronjob
+spec:
+  schedule: "* * * * *" 
+  jobTemplate:                   
+    spec:                        
+      template:    
+        metadata:
+          labels:
+            job-type: whale-say #<.>              
+        spec:
+          containers:
+          - name: whale-say-container
+            image: docker/whalesay
+            command: ["cowsay","Hello DevNation"]
+          restartPolicy: Never
+EOF
 ----
 --
 ====
@@ -440,7 +479,26 @@ oc logs #-l job-name# --tail=-1
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc delete -f apps/kubefiles/whalesay-cronjob.yaml
+cat <<EOF | oc delete -f -
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: whale-say-cronjob
+spec:
+  schedule: "* * * * *" 
+  jobTemplate:                   
+    spec:                        
+      template:    
+        metadata:
+          labels:
+            job-type: whale-say #<.>              
+        spec:
+          containers:
+          - name: whale-say-container
+            image: docker/whalesay
+            command: ["cowsay","Hello DevNation"]
+          restartPolicy: Never
+EOF
 ----
 --
 ====

@@ -9,7 +9,7 @@ https://12factor.net/config[12 Factor Apps]
 
 == 환경 변수
 
-MyRESTController.java에는 환경을 참조하는 작은 코드 조각이 포함되어 있습니다.
+예를 들어 MyRESTController.java에는 환경을 참조하는 작은 코드 조각이 포함되어 있습니다.
 
 [source,java]
 ----
@@ -27,7 +27,7 @@ MyRESTController.java에는 환경을 참조하는 작은 코드 조각이 포�
    }
 ----
 
-환경 변수는 Deployment 수준에서 조작할 수 있습니다. 하지만 이 방식에는 한계가 있습니다 — 설정값이 Deployment 정의 안에 그대로 박혀 있어서 여러 Deployment가 같은 설정을 공유하기 어렵고, 값이 바뀔 때마다 Deployment의 Pod 템플릿이 바뀌므로(롤링 업데이트 장에서 봤던 것과 같은 방식으로) Pod가 통째로 다시 배포됩니다. 이 한계를 먼저 직접 겪어 본 다음, 이를 해결하는 ConfigMap으로 넘어가 보겠습니다.
+환경 변수는 Deployment 수준에서도 조작할 수 있습니다. 하지만 이 방식에는 한계가 있습니다 — 설정값이 Deployment 정의 안에 그대로 박혀 있어서 여러 Deployment가 같은 설정을 공유하기 어렵고, 값이 바뀔 때마다 Deployment의 Pod 템플릿이 바뀌므로(롤링 업데이트 장에서 봤던 것과 같은 방식으로) Pod가 통째로 다시 배포됩니다. 이 한계를 먼저 직접 겪어 본 다음, 이를 해결하는 ConfigMap으로 넘어가 보겠습니다.
 
 ``myboot``를 배포합니다:
 
@@ -35,7 +35,29 @@ MyRESTController.java에는 환경을 참조하는 작은 코드 조각이 포�
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc apply -f apps/kubefiles/myboot-deployment.yml
+cat <<EOF | oc apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: myboot
+  name: myboot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: myboot
+  template:
+    metadata:
+      labels:
+        app: myboot
+    spec:
+      containers:
+      - name: myboot
+        image: quay.io/rhdevelopers/myboot:v1
+        ports:
+          - containerPort: 8080
+EOF
 ----
 
 `myboot` Service를 배포합니다:
@@ -44,7 +66,20 @@ oc apply -f apps/kubefiles/myboot-deployment.yml
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc apply -f apps/kubefiles/myboot-service.yml
+cat <<EOF | oc apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: myboot
+  labels:
+    app: myboot
+spec:
+  ports:
+  - name: http
+    port: 8080
+  selector:
+    app: myboot
+EOF
 ----
 
 그리고 pod의 상태를 지켜봅니다:
@@ -54,9 +89,18 @@ include::partial$watching-pods.adoc[]
 
 애플리케이션에 설정 정보를 요청합니다:
 
-:section-k8s: configmaps
-:service-exposed: myboot
-include::partial$env-curl.adoc[]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+IP=$(kubectl get service myboot -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
+----
+
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+PORT=$(kubectl get service myboot -o jsonpath="{.spec.ports[*].port}")
+----
 
 [#get-config-configmaps]
 [.console-input]
@@ -74,6 +118,7 @@ msgBroker=Default
 greeting=Default
 love=Default
 ----
+NOTE: 현재 설정되어 있는 Application의 환경 변수값을 확인 할 수 있습니다.
 
 == 환경 변수 설정하기
 
@@ -87,6 +132,12 @@ oc set env deployment/myboot GREETING="namaste" \
 ----
 
 방금 실행한 명령은 Deployment의 Pod 템플릿에 환경 변수를 추가한 것과 같은 효과를 냅니다. 템플릿이 바뀌었으므로, 예상대로 기존 Pod는 종료되고 새 설정을 가진 Pod가 새로 태어나는 것을 지켜봅니다:
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+oc get pods
+----
 
 [.console-output]
 [source,bash]
@@ -172,21 +223,48 @@ love=Default
 
 이번에는 설정값을 Deployment 밖으로 완전히 꺼내 봅시다. `--from-env-file` 옵션을 사용하면 `key=value` 형식의 properties 파일 전체를 하나의 ConfigMap으로 만들 수 있습니다. 이렇게 만든 ConfigMap은 여러 Deployment에서 재사용할 수 있고, Deployment의 정의와는 독립적으로 관리할 수 있습니다:
 
+[source,text]
+----
+# 파일에서 만드는 예시
+oc create cm my-config --from-env-file=apps/config/some.properties
+----
+
+실습에서는 파일을 사용하지 않고 직접 값을 입력하여 생성해보겠습니다.
+
 [#create-configmap-configmaps]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc create cm my-config --from-env-file=apps/config/some.properties
+oc create configmap my-config --from-literal=GREETING=jambo --from-literal=LOVE=Amour
 ----
+
+configmap의 리스트를 확인하고, 생성된 configmap이 있는지 확인합니다.
+TIP: 명령어 사용시,  `configmap` 은 줄여서 `cm` 으로 사용할 수 있습니다.
 
 [#get-configmap-configmaps]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
 oc get cm
+----
+
+
+[#get-configmap-configmaps]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
 oc get cm my-config
+----
+
+생성된 configmap의 값을 json 포맷으로 확인합니다.
+
+[#get-configmap-configmaps]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
 oc get cm my-config -o json
 ----
+
 
 [.console-output]
 [source,bash]
@@ -200,7 +278,7 @@ oc get cm my-config -o json
 ...    
 ----
 
-또는 `ConfigMap` 객체를 describe할 수도 있습니다:
+또는 `ConfigMap` 객체를 describe해서 값을 확인할 수도 있습니다:
 
 [#describe-configmap-configmaps]
 [.console-input]
@@ -232,8 +310,6 @@ Events:  <none>
 ****
 큰 파일의 경우 클러스터의 리소스를 확인할 때 ``oc edit``을 사용하는 편이 더 편리할 수 있습니다. 여기서는 다음 명령을 실행해서(변경 사항은 저장하지 말고 취소하세요!) config map을 확인할 수 있습니다:
 
-include::partial$tip_vscode_kube_editor.adoc[]
-
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
@@ -247,7 +323,39 @@ oc edit cm my-config
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc apply -f apps/kubefiles/myboot-deployment-configuration.yml
+cat <<EOF | oc apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: myboot
+  name: myboot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: myboot
+  template:
+    metadata:
+      labels:
+        app: myboot
+    spec:
+      containers:
+      - name: myboot
+        image: quay.io/rhdevelopers/myboot:v1  
+        ports:
+          - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: my-config
+        resources:
+          requests: 
+            memory: "400Mi" 
+            cpu: "250m" # 1/4 core
+          limits:
+            memory: "600Mi"
+            cpu: "1000m" # 1 core
+EOF
 ----
 
 그리고 configure 엔드포인트를 확인합니다:
@@ -276,7 +384,7 @@ love=Amour
 [source,bash,subs="+macros,+attributes"]
 ----
 oc delete cm my-config
-oc create cm my-config --from-env-file=apps/config/other.properties
+oc create cm my-config --from-literal=DBCONN=jdbc:sqlserver://123.123.123.123:1443 --from-literal=user=MyUserName --from-literal=password=***** --from-literal=MSGBROKER=tcp://localhost:61616?jms.useAsyncSend=true
 oc delete pod -l app=myboot --wait=false
 ----
 

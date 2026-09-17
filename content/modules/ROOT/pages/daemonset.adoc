@@ -49,8 +49,31 @@ DaemonSet을 배포하고, ``-o wide``로 각 Pod가 어느 노드(`NODE` 열)�
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc apply -f apps/kubefiles/quarkus-daemonset.yaml
+cat <<EOF | oc apply -f -
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: quarkus-daemonset
+  labels:
+    app: quarkus-daemonset
+spec:
+  selector:
+    matchLabels:
+      app: quarkus-daemonset
+  template:
+    metadata:
+      labels:
+        app: quarkus-daemonset
+    spec:
+      containers:
+      - name: quarkus-daemonset
+        image: quay.io/rhdevelopers/quarkus-demo:v1
+EOF
+----
 
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
 oc get pods -o wide
 ----
 
@@ -69,5 +92,24 @@ quarkus-daemonset-r64ql   1/1     Running   0          23s   10.244.1.2   multin
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc delete -f apps/kubefiles/quarkus-daemonset.yaml
+cat <<EOF | oc delete -f -
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: quarkus-daemonset
+  labels:
+    app: quarkus-daemonset
+spec:
+  selector:
+    matchLabels:
+      app: quarkus-daemonset
+  template:
+    metadata:
+      labels:
+        app: quarkus-daemonset
+    spec:
+      containers:
+      - name: quarkus-daemonset
+        image: quay.io/rhdevelopers/quarkus-demo:v1
+EOF
 ----

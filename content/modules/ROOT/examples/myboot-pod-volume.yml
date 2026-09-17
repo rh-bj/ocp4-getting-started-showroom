@@ -9,7 +9,7 @@ spec:
     
     volumeMounts:
     - mountPath: /tmp/demo #<.>
-      name: demo-volume #<.> 
+      name: demo-volume #<.>
 
   volumes:
   - name: demo-volume

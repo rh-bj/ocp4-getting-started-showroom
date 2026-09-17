@@ -4,34 +4,84 @@ include::_attributes.adoc[]
 :watch-terminal: 터미널 2
 :file-watch-terminal: 터미널 3
 
-컨테이너는 정의상 일시적입니다. 즉, 실행 중에 저장된 내용은 컨테이너가 멈추면 사라집니다.
-이는 데이터베이스 컨테이너처럼 데이터를 영구적으로 보존해야 하는 컨테이너에 문제가 될 수 있습니다.
+컨테이너는 기본적으로 **일시적인(ephemeral) 실행 환경**입니다.
 
-쿠버네티스 volume은 Pod 안의 Container들이 접근할 수 있는 디렉터리일 뿐입니다.
-이 개념은 Docker volume과 비슷하지만, Docker에서는 컨테이너를 컴퓨터 호스트에 매핑하는 반면, 쿠버네티스 volume의 경우에는 그 volume을 뒷받침하는 매체와 내용이 사용된 특정 volume 유형에 따라 결정됩니다.
+컨테이너가 실행되는 동안 파일을 생성하거나 데이터를 저장할 수 있지만, 이러한 데이터가 컨테이너 자체의 파일 시스템에만 저장되어 있다면 컨테이너가 삭제되거나 새로 생성될 때 그대로 유지된다는 보장이 없습니다.
 
-몇 가지 volume 유형은 다음과 같습니다:
+예를 들어 데이터베이스를 컨테이너로 실행하면서 데이터 파일까지 컨테이너 내부에만 저장한다면, 컨테이너가 재생성되었을 때 중요한 데이터가 사라질 수 있습니다.
 
-* awsElasticBlockStore
-* azureDisk
-* cephfs
-* nfs
-* local
-* empty dir
-* host path
+Kubernetes에서는 이러한 문제를 해결하기 위해 **Volume**을 사용할 수 있습니다.
+
+Volume은 Pod에 정의되고, Pod 안의 하나 이상의 컨테이너에 특정 디렉터리로 마운트하여 사용할 수 있는 저장 공간입니다.
+
+[source,text]
+-------------------
+Pod
+│
+├─ Container A
+│     └─ /data ───┐
+│                 │
+├─ Container B    │
+│     └─ /shared ─┤
+│                 │
+└─ Volume ────────┘
+-------------------
+
+즉, 컨테이너는 Volume을 자신의 파일 시스템 안에 있는 일반적인 디렉터리처럼 사용할 수 있습니다.
+
+Volume의 실제 데이터가 어디에 저장되고 얼마나 오래 유지되는지는 **어떤 종류의 Volume을 사용하느냐**에 따라 달라집니다.
+
+대표적으로 다음과 같은 방식이 있습니다.
+
+* `emptyDir`
+  ** Pod가 실행되는 동안 사용할 임시 저장 공간입니다.
+  ** 컨테이너가 재시작되어도 같은 Pod가 유지되는 동안에는 데이터가 남아 있습니다.
+  ** 하지만 Pod가 삭제되면 데이터도 함께 사라집니다.
+
+* `hostPath`
+  ** Worker Node의 특정 디렉터리를 Pod에 직접 마운트합니다.
+  ** Pod가 다른 Node로 이동하면 같은 데이터를 사용할 수 없기 때문에 일반적인 애플리케이션의 영구 저장소로 사용하는 것은 적합하지 않습니다.
+
+* **Persistent Volume**
+  ** Pod의 수명과 관계없이 데이터를 유지해야 할 때 사용합니다.
+  ** 애플리케이션은 일반적으로 `PersistentVolumeClaim(PVC)`을 통해 필요한 저장 공간을 요청합니다.
+  ** 실제 저장소는 NFS, Ceph, 클라우드 Block Storage 등 다양한 시스템이 될 수 있으며, 현재 Kubernetes에서는 주로 **CSI(Container Storage Interface)** 드라이버를 통해 이러한 외부 스토리지를 연결합니다.
+
+[source,text]
+-------------------------
+Pod
+│
+│ mount
+▼
+PVC (PersistentVolumeClaim)
+│
+▼
+PV (PersistentVolume)
+│
+▼
+실제 Storage
+(NFS, Ceph, Cloud Disk 등)
+-------------------------
+
+따라서 중요한 것은 **Volume 자체가 항상 영구적인 저장 공간을 의미하는 것은 아니라는 점**입니다.
+
+[source,text]
+------------------------------------------
+emptyDir      → Pod가 없어지면 데이터도 사라짐
+PersistentVolume → Pod가 없어져도 데이터를 유지할 수 있음
+------------------------------------------
+
+이번 실습에서는 실제로 Volume을 생성하고 컨테이너에 마운트하여, 컨테이너에서 데이터를 어떻게 저장하고 사용할 수 있는지 확인해 보겠습니다.
 
 == 준비
 
 === 네임스페이스
 
+올바른 네임스페이스에 있는지 확인합니다:
+
 :section-k8s: volumes
-:set-namespace: {user}-myspace
-
-올바른 네임스페이스 ``{set-namespace}``가 생성되어 있고 컨텍스트가 이를 가리키도록 설정되어 있는지 확인합니다.
-
-include::partial$namespace-setup-tip.adoc[]
-
-include::partial$set-context.adoc[]
+:set-namespace: myspace
+include::partial$new-terminal.adoc[]
 
 === 지켜보기
 
@@ -53,9 +103,7 @@ Pod가 재시작되거나 제거되면 ``emptyDir``의 데이터는 영구적으
 
 :quick-open-file: myboot-pod-volume.yml
 
-파일에 내용을 쓰는 엔드포인트 하나와 그 파일에서 내용을 조회하는 엔드포인트 하나, 이렇게 두 엔드포인트를 노출하는 service를 배포해 봅시다. ``{quick-open-file}``을 열어보세요.
-
-include::partial$tip_vscode_quick_open.adoc[]
+파일에 내용을 쓰는 엔드포인트 하나와 그 파일에서 내용을 조회하는 엔드포인트 하나, 이렇게 두 엔드포인트를 노출하는 앱을 배포해 봅시다. 먼저 yaml을 살펴봅니다.
 
 [source, yaml]
 .{quick-open-file}
@@ -63,7 +111,7 @@ include::partial$tip_vscode_quick_open.adoc[]
 include::example$myboot-pod-volume.yml[]
 ----
 <.> 이것이 ``Deployment``가 아니라 ``Pod``라는 점에 주목하세요.
-<.> 이 마운트 지점이 pod 안에 나타날 위치입니다. 아래를 참고하세요.
+<.> pod 안에 Volume을 마운트할 지점입니다. 
 <.> 이 값은 우리가 정의할 volume의 이름과 일치해야 하며, 이 경우 파일 맨 아래에 정의되어 있습니다.
 
 `volumes` 섹션에서는 volume을 정의하고, `volumeMounts` 섹션에서는 그 volume이 컨테이너 안에 어떻게 마운트되는지를 정의합니다.
@@ -71,10 +119,27 @@ include::example$myboot-pod-volume.yml[]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc apply -f apps/kubefiles/myboot-pod-volume.yml
+cat <<EOF | oc apply -f -
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myboot-demo
+spec:
+  containers:
+  - name: myboot-demo
+    image: quay.io/rhdevelopers/myboot:v4
+    
+    volumeMounts:
+    - mountPath: /tmp/demo
+      name: demo-volume
+
+  volumes:
+  - name: demo-volume
+    emptyDir: {}
+EOF
 ----
 
-그러면 watch 창에서 다음과 비슷한 내용을 볼 수 있습니다.
+그러면 터미널 2에서 다음과 비슷한 내용을 볼 수 있습니다.
 
 [tabs]
 ====
@@ -166,12 +231,29 @@ oc delete pod myboot-demo
 다시 배포를 시도하기 전에 pod가 완전히 삭제될 때까지 기다려야 합니다.
 ====
 
-그런 다음 같은 service를 다시 배포하면:
+그런 다음 같은 Pod를 다시 배포하면:
 
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc apply -f apps/kubefiles/myboot-pod-volume.yml
+cat <<EOF | oc apply -f -
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myboot-demo
+spec:
+  containers:
+  - name: myboot-demo
+    image: quay.io/rhdevelopers/myboot:v4
+    
+    volumeMounts:
+    - mountPath: /tmp/demo
+      name: demo-volume
+
+  volumes:
+  - name: demo-volume
+    emptyDir: {}
+EOF
 ----
 
 그리고 `Running` 상태가 되면 pod에 ``exec``로 접속합니다:
@@ -228,7 +310,6 @@ oc delete pod myboot-demo
 ``emptyDir``은 같은 Pod의 컨테이너 사이에 공유됩니다. 같은 pod 안에 같은 `emptyDir` volume을 마운트하는 두 개의 컨테이너를 만드는 deployment를 살펴봅시다.
 
 :quick-open-file: myboot-pods-volume.yml
-include::partial$tip_vscode_quick_open.adoc[]
 
 ``{quick-open-file}``을 살펴봅시다:
 
@@ -249,10 +330,37 @@ include::example$myboot-pods-volume.yml[]
 [.console-input]
 [source,bash]
 ----
-oc apply -f apps/kubefiles/myboot-pods-volume.yml
+cat <<EOF | oc apply -f -
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myboot-demo
+spec:
+  containers:
+  - name: myboot-demo-1 #<.>
+    image: quay.io/rhdevelopers/myboot:v4
+    volumeMounts:
+    - mountPath: /tmp/demo
+      name: demo-volume
+
+  - name: myboot-demo-2 #<.>
+    image: quay.io/rhdevelopers/myboot:v4 #<.>
+
+    env:
+    - name: SERVER_PORT #<.>
+      value: "8090"
+
+    volumeMounts:
+    - mountPath: /tmp/demo
+      name: demo-volume
+
+  volumes:
+  - name: demo-volume #<.>
+    emptyDir: {}
+EOF
 ----
 
-그러면 pod watch에서 다음을 볼 수 있습니다.
+그러면 터미널 2에서 다음을 볼 수 있습니다.
 
 [tabs]
 ====
@@ -277,8 +385,6 @@ myboot-demo   #2/2#    Running   0          4s
 {file-watch-terminal}::
 +
 --
-
-include::partial$open-terminal-in-editor-inset.adoc[]
 
 [.console-input]
 [source,bash]
@@ -396,11 +502,17 @@ include::partial$terminal-cleanup.adoc[tags=**;!*;term3;term-exec]
 
 === HostPath
 
+
+IMPORTANT: **hostPath 볼륨 사용 제한** +
+OpenShift는 클러스터 노드의 파일 시스템 경로를 컨테이너에 직접 마운트하는 hostPath 볼륨의 사용을 기본적으로 금지합니다. 이는 보안상 중요한 이유 때문입니다.+
+*SCC(Secure Context Constraints)* +
+OpenShift는 Pod가 특정 보안 컨텍스트 제약 조건(SCC)에 맞아야 실행을 허용합니다. +
+기본적으로 사용자는 restricted SCC가 할당되어 있고, 이는 hostPath 볼륨 사용을 허용하지 않습니다.+
+**이 실습의 user계정은 admin 권한이 없기 때문에, `HostPath` 부분은 읽어만 보세요.**
+
 :quick-open-file: myboot-pod-volume-hostpath.yml
 
 `hostPath` volume은 노드의 파일시스템에 있는 파일이나 디렉터리를 Pod 안에 마운트합니다. ``{quick-open-file}``을 살펴보세요.
-
-include::partial$tip_vscode_quick_open.adoc[]
 
 [source, yaml]
 .{quick-open-file}
@@ -415,7 +527,25 @@ include::example$myboot-pod-volume-hostpath.yaml[]
 [.console-input]
 [source,bash]
 ----
-oc apply -f apps/kubefiles/myboot-pod-volume-hostpath.yaml
+cat <<EOF | oc apply -f -
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myboot-demo
+spec:
+  containers:
+  - name: myboot-demo
+    image: quay.io/rhdevelopers/myboot:v4
+    
+    volumeMounts:
+    - mountPath: /tmp/demo
+      name: demo-volume
+
+  volumes:
+  - name: demo-volume
+    hostPath: #<.> 
+      path: "/mnt/data" #<.>
+EOF
 ----
 
 이제 Pod를 describe해 보면, volumes 섹션에서 다음을 볼 수 있습니다:
@@ -436,16 +566,12 @@ Volumes:
     HostPathType:
 ----
 
-
 [tabs]
 ====
 {file-watch-terminal}::
 +
 --
 'host' 또는 'node'의 디렉터리를 지켜볼 수 있는 터미널을 열어봅시다.
-
-include::partial$open-terminal-in-editor-inset.adoc[]
-
 
 :mount-dir: /mnt/data
 include::partial$watch-node-directory.adoc[]
