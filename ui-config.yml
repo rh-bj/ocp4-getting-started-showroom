@@ -11,10 +11,13 @@ view_switcher:
   default_mode: split
 
 tabs:
-#  - name: Terminal
-#    path: /terminal
-#    port: 443
   - name: OCP Console
     url: 'https://console-openshift-console.${DOMAIN}'
   - name: Terminal
     url: 'https://console-openshift-console.${DOMAIN}/terminal'
+  - name: Terminal 2
+    path: /terminal
+    port: 443
+#  - name: Terminal
+#    path: /terminal
+#    port: 443
