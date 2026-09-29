@@ -49,10 +49,24 @@ oc adm taint nodes 노드이름 workshop-demo=scheduling:NoSchedule
 ```
 for ns in $(oc get projects -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | grep -E '^showroom'); do
   echo "Updating deployment/showroom in project: $ns"
-
-  oc -n "$ns" set env deployment/showroom \
-    --containers=content \
-    GIT_REPO_URL='https://github.com/rh-bj/ocp4-getting-started-showroom' \
-    GIT_REPO_REF='showroom-4-21-console'
+oc -n "$ns" patch deployment showroom --type='strategic' -p='
+spec:
+  template:
+    spec:
+      initContainers:
+      - name: git-cloner
+        env:
+        - name: GIT_REPO_URL
+          value: 'https://github.com/rh-bj/ocp4-getting-started-showroom'
+        - name: GIT_REPO_REF
+          value: 'showroom-4-21-console'
+      containers:
+      - name: content
+        env:
+          - name: GIT_REPO_URL
+            value: 'https://github.com/rh-bj/ocp4-getting-started-showroom'
+          - name: GIT_REPO_REF
+            value: 'showroom-4-21-console'
+'
 done
 ```
