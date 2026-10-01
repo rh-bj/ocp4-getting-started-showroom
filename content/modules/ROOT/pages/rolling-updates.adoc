@@ -1,4 +1,4 @@
-= 롤링 업데이트
+= Rolling Updates
 include::vars.adoc[]
 
 IMPORTANT: 이 실습은 직전의 `Resources and Limits` 실습 환경을 이어서 사용합니다.
