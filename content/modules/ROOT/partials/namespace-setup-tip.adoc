@@ -6,7 +6,7 @@
 [.console-input]
 [source, bash, subs="+attributes"]
 ----
-oc get project {set-namespace}
+oc get project {user}-{set-namespace}
 ----
 
 응답이 다음과 같다면,
@@ -22,6 +22,6 @@ Error from server (Forbidden): projects.project.openshift.io "{user}-{set-namesp
 [.console-input]
 [source, bash, subs="+attributes"]
 ----
-oc new-project {set-namespace}
+oc new-project {user}-{set-namespace}
 ----
 ====
