@@ -540,7 +540,7 @@ oc logs #-l job-name# --tail=-1
 [source,bash,subs="+macros,+attributes"]
 ----
 oc delete job whale-say-job
-oc delete crobnjob whale-say-cronjob
+oc delete cronjob whale-say-cronjob
 ----
 --
 ====

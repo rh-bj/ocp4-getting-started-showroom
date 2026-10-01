@@ -175,7 +175,11 @@ include::partial$new-terminal.adoc[]
 :set-namespace: myspace
 include::partial$new-terminal.adoc[]
 
-include::partial$watching-pods.adoc[]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+oc get pods -w
+----
 --
 ====
 
@@ -533,5 +537,3 @@ StatefulSet과 Headless Service를 삭제합니다.
 oc delete statefulset quarkus-statefulset
 oc delete service quarkus
 ----
-
-터미널 2에서 kbd:[Ctrl+c]를 눌러 실행 중인 ``watch`` 명령도 종료합니다.
