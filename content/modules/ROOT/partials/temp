@@ -7,6 +7,17 @@ include::partial$new-terminal.adoc[]
 
 
 
+
+:section-k8s: services
+:set-namespace: myspace
+
+include::partial$set-context.adoc[]
+
+
+
+
+
+
 ===========
 
 그리고 loop 스크립트를 실행합니다:
@@ -62,3 +73,19 @@ oc delete deployment quarkus-demo-deployment
 oc delete service the-service
 oc delete route the-service
 ----
+
+
+
+
+[tabs]
+====
+터미널 1::
++
+--
+
+
+내용물~~~~~~~~~~~~~~~~~~₩
+
+
+--
+====

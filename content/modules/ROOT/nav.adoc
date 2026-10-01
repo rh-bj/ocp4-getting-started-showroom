@@ -1,7 +1,7 @@
 * 1. 요구 사항
-** xref:installation.adoc[설치]
-*** xref:installation.adoc#tutorial-all-local[CLI]
+** xref:installation.adoc[환경 준비]
 *** xref:installation.adoc#start-kubernetes[환경 확인하기]
+*** xref:installation.adoc#tutorial-all-local[CLI]
 
 * 2. 파트 1
 ** xref:kubectl.adoc[oc]
@@ -12,7 +12,7 @@
 ** xref:blue-green.adoc[Blue/Green 배포]
 
 * 3. 파트 2
-** xref:resources.adoc[리소스와 제한]
+** xref:resources.adoc[리소스 요청 및 제한]
 ** xref:rolling-updates.adoc[롤링 업데이트]
 ** xref:live-ready.adoc[Liveness, Readiness & Startup]
 ** xref:configmap.adoc[ConfigMap]

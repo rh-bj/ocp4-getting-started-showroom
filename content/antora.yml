@@ -4,7 +4,7 @@ version: master
 nav:
   - modules/ROOT/nav.adoc
 
-start_page: ROOT:index.adoc
+start_page: ROOT:installation.adoc
 
 # DO NOT USE these vars in your asciidoc content.
 # Use the vars defined in the vars.adoc file instead.

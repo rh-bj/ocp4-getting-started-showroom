@@ -2,5 +2,5 @@
 [.console-input]
 [source, bash, subs="+macros,+attributes"]
 ----
-oc config set-context --current --namespace={set-namespace}
+oc config set-context --current --namespace={user}-{set-namespace}
 ----

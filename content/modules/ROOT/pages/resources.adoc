@@ -1,14 +1,38 @@
-= 리소스와 제한
+= 리소스 요청 및 제한
 include::vars.adoc[]
-
-쿠버네티스는 컨테이너마다 CPU와 메모리 사용량을 두 가지 값으로 조절할 수 있습니다: __Requests__(스케줄러가 이 Pod를 배치할 노드를 고를 때 "최소 이만큼은 확보해 달라"는 값)와 __Limits__(컨테이너가 실제로 사용할 수 있는 __최대__ 한도). 문제는, 오래된 JVM은 자신이 __컨테이너 안에__ 있다는 것을 알지 못하고 호스트 머신 전체의 메모리를 기준으로 힙 크기를 계산한다는 것입니다. 이 둘을 지정하지 않으면 어떤 문제가 생기는지, 그리고 이 JVM 문제가 쿠버네티스 위에서는 어떻게 나타나는지를 이번 장에서 직접 확인해 봅니다.
-
-올바른 네임스페이스에 있는지 확인합니다:
-
 :section-k8s: resource
-:set-namespace: myspace
 
-include::partial$new-terminal.adoc[]
+== 배경지식: 요청(Requests)과 제한(Limits)
+이 실습에서는 Kubernetes에서 컨테이너/Pod가 소비하는 리소스를 어떻게 조절하고 모니터링할 수 있는지 살펴보겠습니다.
+
+Kubernetes에서는 컨테이너의 리소스를 **"요청(Requests)"**과 **"제한(Limits)"**으로 설정할 수 있습니다.
+이 개념을 이해하는 것이 매우 중요합니다.
+
+* 요청(Requests)
+** 애플리케이션이 실행되기 위해 최소한으로 필요한 리소스입니다.
+** 예를 들어, cpu: 250m을 요청하면 CPU 0.25코어 이상을 사용할 수 있는 노드에서만 실행됩니다.
+
+* 제한(Limits)
+** 애플리케이션이 사용할 수 있는 최대 리소스를 설정합니다.
+** 예를 들어, memory: 512Mi를 설정하면 최대 512MB까지만 메모리를 사용할 수 있습니다.
+** 이 제한을 초과하면 컨테이너가 강제 종료(OOM Kill)될 수도 있습니다.
+
+이 둘을 지정하지 않으면 어떤 문제가 생기는지 이번 장에서 직접 확인해 봅니다.
+
+
+== 실습: 리소스 요청 및 제한
+=== 사전 준비
+
+올바른 프로젝트가 생성되어 있는지, 현재 터미널의 컨텍스트가 해당 프로젝트를 가리키도록 설정했는지 먼저 확인하세요.
+
+include::partial$namespace-setup-tip.adoc[]
+
+터미널 1에서 올바른 네임스페이스에 있는지 확인합니다.
+
+(터미널 탭을 새로 열 때마다 wksp-{user} 프로젝트로 돌아가니 아래 명령어를 꼭 실행해주세요)
+
+:set-namespace: myspace
+include::partial$set-context.adoc[]
 
 네임스페이스에 아무것도 실행 중이지 않은지 확인합니다:
 
@@ -25,7 +49,7 @@ oc get all
 No resources found in myspace namespace.
 ----
 
-먼저 Request나 Limit 없이 애플리케이션을 배포합니다:
+그럼 먼저 터미널 1에서 Request나 Limit 없이 애플리케이션을 배포합니다:
 
 [#no-limits-resource]
 [.console-input]
@@ -139,13 +163,13 @@ Events:
 oc delete deployment myboot
 ----
 
-일부러 과도하게 큰 CPU를 요청하도록 resource request를 지정해서 새 deployment를 생성합니다. 클러스터의 어떤 노드도 이만큼의 여유 CPU를 갖고 있지 않아서 Pod가 스케줄되지 못하는 상황을 재현하기 위한 것입니다:
+다음과 같이 일부러 과도하게 큰 CPU(100코어)를 요청하도록 resource request를 지정해서 새 deployment를 생성합니다. 클러스터의 어떤 노드도 이만큼의 여유 CPU를 갖고 있지 않기 때문에 Pod가 스케줄되지 못할 겁니다. 
 
 [#limits-resource]
 [.console-input]
 [source, bash]
 ----
-cat <<EOF | oc apply -f -
+cat <<EOF | oc replace -f -
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -170,7 +194,7 @@ spec:
         resources:
           requests: 
             memory: "300Mi" 
-            cpu: "16000m" # 16 cores
+            cpu: "100000m" # 100 cores
 EOF
 ----
 
@@ -190,7 +214,7 @@ NAME                      READY   STATUS    RESTARTS   AGE
 myboot-7b7d754c86-kjwlr   0/1     Pending   0          19s
 ----
 
-오류에 대한 더 자세한 정보를 확인하려면:
+오류에 대한 더 자세한 정보를 확인하려면 다음 명령어를 실행합니다:
 
 [#get-events-resource]
 [.console-input]
@@ -206,7 +230,7 @@ oc get events --sort-by=.metadata.creationTimestamp
 <unknown>   Warning   FailedScheduling    pod/myboot-7b7d754c86-kjwlr    0/6 nodes are available: 6 Insufficient cpu.
 ----
 
-pod 스펙의 "resource requests"는 최소 하나의 워커 노드가 N개의 코어와 X만큼의 메모리를 사용 가능해야 함을 요구합니다. 이 조건을 만족하는 워커 노드가 없다면 "PENDING" 상태와 함께 이벤트 목록에 해당 내용이 표시됩니다.
+Pod 스펙에 "resource requests"를 입력하면, 최소 하나의 워커 노드가 N개의 코어와 X만큼의 메모리를 사용 가능해야 해당 Pod를 스케줄링할 수 있습니다. 이 조건을 만족하는 워커 노드가 없다면 "PENDING" 상태와 함께 이벤트 목록에 위와 비슷한 내용이 표시됩니다.
 
 pod에 ``oc describe``를 실행해서 실패에 대한 더 자세한 정보를 확인할 수도 있습니다.
 

@@ -1,7 +1,5 @@
 :tmp-service-exposed: {service-exposed}
 
-이 실습 환경의 터미널은 클러스터와 같은 네트워크 안에 있으므로, Service 타입과 상관없이 항상 할당되는 내부 주소인 ``ClusterIP``로 바로 접근할 수 있습니다. 
-
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
