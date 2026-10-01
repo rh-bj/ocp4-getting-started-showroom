@@ -7,11 +7,22 @@ include::_attributes.adoc[]
 
 ConfigMap은 애플리케이션의 설정을 외부화할 수 있게 해주는 쿠버네티스 리소스입니다.
 
-**__앱의 설정이란 배포 환경(스테이징, 프로덕션, 개발자 환경 등)에 따라 달라질 가능성이 있는 모든 것을 말합니다.__**
+여기서 __앱의 설정__이란 __배포 환경(스테이징, 프로덕션, 개발자 환경 등)에 따라 달라질 가능성이 있는 모든 것__을 말합니다. (참고: https://12factor.net/config[12 Factor Apps])
 
-https://12factor.net/config[12 Factor Apps]
+== 실습: Configmap
+=== 사전 준비
 
-예를 들어 MyRESTController.java에는 환경을 참조하는 작은 코드 조각이 포함되어 있습니다.
+터미널 1에서 올바른 프로젝트에 있는지 확인합니다.
+
+(터미널 탭을 새로 열 때마다 wksp-{user} 프로젝트로 돌아가니 아래 명령어를 꼭 실행해주세요)
+
+:set-namespace: myspace
+include::partial$new-terminal.adoc[]
+
+
+=== 환경 변수
+
+실습용으로 사용하고 있는 myboot 애플리케이션의 MyRESTController.java 코드에는 다음과 같이 환경을 참조하는 작은 코드 조각이 포함되어 있습니다.
 
 [source,java]
 ----
@@ -29,22 +40,12 @@ https://12factor.net/config[12 Factor Apps]
    }
 ----
 
-환경 변수는 Deployment 수준에서도 조작할 수 있습니다. 
-하지만 이 방식에는 한계가 있습니다 — 설정값이 Deployment 정의 안에 그대로 박혀 있어서 여러 Deployment가 같은 설정을 공유하기 어렵고, 값이 바뀔 때마다 Deployment의 Pod 템플릿이 바뀌므로(롤링 업데이트 장에서 봤던 것과 같은 방식으로) Pod가 통째로 다시 배포됩니다. 
+이러한 환경 변수는 Deployment 수준에서도 조작할 수 있지만, 이 방식에는 한계가 있습니다. 
 
+설정값이 Deployment 정의 안에 그대로 박혀 있어서 여러 Deployment가 같은 설정을 공유하기 어렵고, 값이 바뀔 때마다 Deployment의 Pod 템플릿이 바뀌므로(롤링 업데이트 장에서 봤던 것과 같은 방식으로) Pod가 통째로 다시 배포됩니다. 
 이 한계를 먼저 직접 겪어 본 다음, 이를 해결하는 ConfigMap으로 넘어가 보겠습니다.
 
-== 실습: Configmap
-=== 사전 준비
-
-터미널 1에서 올바른 프로젝트에 있는지 확인합니다.
-
-(터미널 탭을 새로 열 때마다 wksp-{user} 프로젝트로 돌아가니 아래 명령어를 꼭 실행해주세요)
-
-:set-namespace: myspace
-include::partial$new-terminal.adoc[]
-
-터미널 1에서 ``myboot``를 배포합니다:
+먼저 터미널 1에서 ``myboot``를 배포합니다:
 
 [#deploy-myboot-configmaps]
 [.console-input]
@@ -99,20 +100,29 @@ EOF
 
 그리고 pod의 상태를 지켜봅니다:
 
+[tabs]
+====
+터미널 2::
++
+--
+올바른 프로젝트에 있는지 확인합니다.
+(터미널 탭을 새로 열 때마다 wksp-{user} 프로젝트로 돌아가니 아래 명령어를 꼭 실행해주세요)
+
+:set-namespace: myspace
+include::partial$new-terminal.adoc[]
+
 include::partial$watching-pods.adoc[]
+--
+====
 
-애플리케이션에 설정 정보를 요청합니다:
+터미널 1에서 애플리케이션에 설정 정보를 요청합니다:
 
+:service-exposed: myboot
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-IP=$(kubectl get service myboot -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
-----
-
-[.console-input]
-[source,bash,subs="+macros,+attributes"]
-----
-PORT=$(kubectl get service myboot -o jsonpath="{.spec.ports[*].port}")
+IP=$(oc get service {service-exposed} -o jsonpath="{.spec.clusterIP}")
+PORT=$(oc get service {service-exposed} -o jsonpath="{.spec.ports[*].port}")
 ----
 
 [#get-config-configmaps]
@@ -135,6 +145,8 @@ NOTE: 현재 설정되어 있는 Application의 환경 변수값을 확인 할 �
 
 === 환경 변수 설정하기
 
+터미널 1에서 다음 명령어를 실행하여 환경변수를 설정합니다.
+
 [#set-env-vars]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
@@ -146,12 +158,11 @@ oc set env deployment/myboot GREETING="namaste" \
 
 방금 실행한 명령은 Deployment의 Pod 템플릿에 환경 변수를 추가한 것과 같은 효과를 냅니다. 템플릿이 바뀌었으므로, 예상대로 기존 Pod는 종료되고 새 설정을 가진 Pod가 새로 태어나는 것을 지켜봅니다:
 
-[.console-input]
-[source,bash,subs="+macros,+attributes"]
-----
-oc get pods
-----
-
+[tabs]
+====
+터미널 2::
++
+--
 [.console-output]
 [source,bash]
 ----
@@ -159,6 +170,13 @@ NAME                      READY   STATUS        RESTARTS   AGE
 myboot-66d7d57687-jsbz7   1/1     Terminating   0          5m
 myboot-785ff6bddc-ghwpc   1/1     Running       0          13s
 ----
+
+터미널 2를 확인하면, 위와 같이 기존 Pod는 종료되고 새로운 Pod가 생성되는 것을 볼 수 있습니다.
+
+--
+====
+
+새로운 Pod가 실행되면, 터미널 1에서 변경된 환경변수를 확인해봅니다. 
 
 [#get-config2-configmaps]
 [.console-input]
@@ -177,7 +195,7 @@ greeting=namaste
 love=Aloha
 ----
 
-deployment를 describe합니다:
+deployment를 describe해도 확인할 수 있습니다.
 
 :section-k8s: configmaps
 :describe-deployment-name: myboot
@@ -202,7 +220,7 @@ include::partial$describe-deployment.adoc[]
 ...  
 ----
 
-환경 변수를 제거합니다:
+환경 변수를 제거합니다.
 
 [#remove-env-vars-configmaps]
 [.console-input]
@@ -213,7 +231,7 @@ oc set env deployment/myboot GREETING- \
   DBCONN-
 ----
 
-그리고 제거되었는지 확인합니다:
+그리고 제거되었는지 확인합니다. 모두 Default 값으로 돌아간 것이 보입니다.
 
 [#get-config3-configmaps]
 [.console-input]
