@@ -399,7 +399,7 @@ Aloha from Spring Boot! 604 on myboot-845968c6ff-zsgx2
 
 === Liveness Probe
 
-이번에는 Readiness가 아니라 Liveness Probe를 실패시켜서, 앞서와 다르게 __Pod 자체가 재시작__된다는 것을 확인해 봅시다. 먼저 v3 이미지로 업데이트합니다:
+이번에는 Readiness가 아니라 Liveness Probe를 실패시켜서, 앞서와 다르게 __Pod의 컨테이너 자체가 재시작__된다는 것을 확인해 봅시다. 먼저 v3 이미지로 업데이트합니다:
 
 [tabs]
 ====
@@ -642,7 +642,7 @@ EOF
 ----
 NOTE: 이 Deployment의 probe 설정은 이전 Deployment와 달리, 초기에 상태 검사를 잠시 지연시키는 initialDelaySeconds가 설정되어 있지 않습니다.
 
-터미널 3에서 이 Pod를 계속 감시해보면 계속해서 다시 시작되는 것을 볼 수 있으며(RESTARTS 수가 올라감), 때로는 성공적으로 부팅된 이후에도(kubelet이 재시작을 예약하기 때문에) pod가 계속 재시작되는데, 이는 SpringBoot가 시작되는 데에 오래 걸려서 Probe에 결국 실패하기 때문입니다.
+터미널 3에서 이 Pod를 계속 감시해보면 계속해서 Pod 내의 컨테이너가 다시 시작되는 것을 볼 수 있으며(RESTARTS 수가 올라감), 때로는 성공적으로 부팅된 이후에도(kubelet이 재시작을 예약하기 때문에) 계속 재시작되는데, 이는 SpringBoot가 시작되는 데에 오래 걸려서 Probe에 결국 실패하기 때문입니다.
 
 [tabs]
 ====

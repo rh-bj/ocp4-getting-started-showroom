@@ -451,8 +451,6 @@ Aloha from Spring Boot! 0 on myboot-d78fb6d58-vnlch
 
 터미널 1과 2에서 kbd:[Ctrl+c]를 눌러 실행 중인 명령어를 취소하고, 생성했던 리소스들을 정리합니다.
 
-
-
 [#clean-up]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]

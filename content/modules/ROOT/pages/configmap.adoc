@@ -171,12 +171,12 @@ myboot-66d7d57687-jsbz7   1/1     Terminating   0          5m
 myboot-785ff6bddc-ghwpc   1/1     Running       0          13s
 ----
 
-터미널 2를 확인하면, 위와 같이 기존 Pod는 종료되고 새로운 Pod가 생성되는 것을 볼 수 있습니다.
+터미널 2를 확인하면, 위와 같이 기존 Pod는 종료되면서 새로운 Pod가 생성되는 것을 볼 수 있습니다.
 
 --
 ====
 
-새로운 Pod가 실행되면, 터미널 1에서 변경된 환경변수를 확인해봅니다. 
+터미널 1에서 변경된 환경변수를 확인해봅니다. 
 
 [#get-config2-configmaps]
 [.console-input]
@@ -252,7 +252,11 @@ love=Default
 
 ===  ConfigMap 생성하기
 
-이번에는 설정값을 Deployment 밖으로 완전히 꺼내 봅시다. `--from-env-file` 옵션을 사용하면 `key=value` 형식의 properties 파일 전체를 하나의 ConfigMap으로 만들 수 있습니다. 이렇게 만든 ConfigMap은 여러 Deployment에서 재사용할 수 있고, Deployment의 정의와는 독립적으로 관리할 수 있습니다:
+이번에는 설정값을 Deployment 밖으로 완전히 꺼내 봅시다. 
+
+`--from-env-file` 옵션을 사용하면 `key=value` 형식의 properties 파일 전체를 하나의 ConfigMap으로 만들 수 있고, `--from-literal` 옵션을 사용하면 명령줄에서 직접 설정값을 입력하여 ConfigMap을 만들 수 있습니다. 
+
+이렇게 만든 ConfigMap은 여러 Deployment에서 재사용할 수 있고, Deployment의 정의와는 독립적으로 관리할 수 있습니다.
 
 [source,text]
 ----
@@ -260,7 +264,7 @@ love=Default
 oc create cm my-config --from-env-file=apps/config/some.properties
 ----
 
-실습에서는 파일을 사용하지 않고 직접 값을 입력하여 생성해보겠습니다.
+실습에서는 파일을 사용하지 않고 명령줄에서 직접 값을 입력하여 생성해보겠습니다.
 
 [#create-configmap-configmaps]
 [.console-input]
@@ -269,8 +273,8 @@ oc create cm my-config --from-env-file=apps/config/some.properties
 oc create configmap my-config --from-literal=GREETING=jambo --from-literal=LOVE=Amour
 ----
 
-configmap의 리스트를 확인하고, 생성된 configmap이 있는지 확인합니다.
-TIP: 명령어 사용시,  `configmap` 은 줄여서 `cm` 으로 사용할 수 있습니다.
+configmap의 리스트를 확인하고, 생성된 configmap이 있는지 확인합니다. 
+(TIP: 명령어 사용시,  ``configmap``은 줄여서 ``cm``으로 사용할 수 있습니다.)
 
 [#get-configmap-configmaps]
 [.console-input]
@@ -337,18 +341,9 @@ Amour
 Events:  <none>
 ----
 
-.리소스를 확인할 때 `oc edit` 사용하기
-****
-큰 파일의 경우 클러스터의 리소스를 확인할 때 ``oc edit``을 사용하는 편이 더 편리할 수 있습니다. 여기서는 다음 명령을 실행해서(변경 사항은 저장하지 말고 취소하세요!) config map을 확인할 수 있습니다:
+이제 이 ConfigMap을 환경 변수로 가져오도록 정의된 Deployment를 배포해 봅시다. 
 
-[.console-input]
-[source,bash,subs="+macros,+attributes"]
-----
-oc edit cm my-config
-----
-****
-
-이제 이 ConfigMap을 환경 변수로 가져오도록 정의된 Deployment를 배포해 봅시다. 이 Deployment 정의 안에는 실제 설정값이 전혀 없고, "``my-config``라는 ConfigMap을 참조하라"는 지시만 들어 있습니다:
+이 Deployment 정의 안에는 실제 설정값이 전혀 없고, "``my-config``라는 ConfigMap을 참조하라"는 지시만 들어 있습니다:
 
 [#deploy-myboot-configmap-configmaps]
 [.console-input]
@@ -389,7 +384,7 @@ spec:
 EOF
 ----
 
-그리고 configure 엔드포인트를 확인합니다:
+터미널 2에서 새로운 Pod가 running 상태로 변하는 것을 확인한 후, configure 엔드포인트를 통해 애플리케이션의 환경 변수 값을 확인합니다.
 
 [#get-config4-configmaps]
 [.console-input]
@@ -408,7 +403,12 @@ greeting=jambo
 love=Amour
 ----
 
-여기서 중요한 함정 하나를 짚고 넘어가겠습니다: ConfigMap을 환경 변수로 사용하는 경우, ConfigMap의 내용이 바뀌어도 이미 떠 있는 Pod에는 __자동으로 반영되지 않습니다__. 환경 변수는 컨테이너가 시작되는 시점에 한 번 주입되기 때문입니다. 그래서 새 설정을 적용하려면 ConfigMap을 바꾼 뒤 Pod를 직접 다시 만들어 줘야 합니다(뒤에서 배울 xref:volumes-persistentvolumes.adoc[Volume]으로 마운트하는 방식은 이와 다르게 동작합니다). ``ConfigMap``을 다시 만들어서 다른 properties 파일로 전환하고, Pod를 지워서 새로 뜨게 해봅시다:
+여기서 한 가지 짚고 넘어가야할 부분으로, ConfigMap을 '환경 변수'로 주입하는 경우, ConfigMap의 내용이 바뀌어도 이미 떠 있는 Pod에는 __자동으로 반영되지 않습니다__. 
+환경 변수는 컨테이너가 시작되는 시점에 한 번 주입되기 때문입니다. 그래서 새 설정을 적용하려면 ConfigMap을 변경한 뒤 Pod를 직접 다시 만들어 줘야 합니다.
+
+(configmap의 내용을 환경 변수가 아닌 파일(볼륨)로 마운트하는 방식에서는 다르게 동작하지만, 여기에서는 자세히 설명하지 않겠습니다.)
+
+``ConfigMap``을 다시 만들어서 내용을 수정하고, Pod를 지워서, 새로운 환경 변수를 주입한 Pod가 새로 뜨게 해봅시다.
 
 [#delete-pod-configmap-configmaps]
 [.console-input]
@@ -436,11 +436,15 @@ hello=Default
 love=Default
 ----
 
+변경한 환경 변수 값이 반영된 것을 확인할 수 있습니다.
+
 ConfigMap을 가지고 즐길 수 있는 방법은 이 밖에도 많습니다. 공식 문서에서는 Deployment 대신 Pod 스펙을 직접 조작하지만 결과는 기본적으로 동일합니다:
 https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap
 
 
 == 실습 환경 정리
+
+터미널 2에서 kbd:[Ctrl+c]를 눌러 실행 중인 명령어를 취소하고, 생성했던 리소스들을 정리합니다.
 
 [#clean-configmaps]
 [.console-input]
