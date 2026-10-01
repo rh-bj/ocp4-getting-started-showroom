@@ -25,6 +25,7 @@ Kubernetes에서는 컨테이너의 리소스를 **"요청(Requests)"**과 **"�
 
 올바른 프로젝트가 생성되어 있는지, 현재 터미널의 컨텍스트가 해당 프로젝트를 가리키도록 설정했는지 먼저 확인하세요.
 
+:set-namespace: myspace
 include::partial$namespace-setup-tip.adoc[]
 
 터미널 1에서 올바른 네임스페이스에 있는지 확인합니다.
