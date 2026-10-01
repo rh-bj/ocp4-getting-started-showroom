@@ -165,22 +165,6 @@ oc logs \
           \____\______/
 ----
 
-=== 정리
-
-[tabs]
-====
-터미널 1::
-+
---
-[.console-input]
-[source,bash,subs="+macros,+attributes"]
-----
-oc delete job whale-say-job
-----
---
-====
-
-
 === CronJob
 
 :quick-open-file: whalesay-cronjob.yaml
@@ -468,7 +452,7 @@ oc logs #-l job-name# --tail=-1
 --
 ====
 
-=== 정리
+== 실습 환경 정리
 
 [tabs]
 ====
@@ -478,6 +462,7 @@ oc logs #-l job-name# --tail=-1
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
+oc delete job whale-say-job
 oc delete crobnjob whale-say-cronjob
 ----
 --

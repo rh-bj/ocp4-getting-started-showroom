@@ -69,7 +69,7 @@ quarkus-daemonset-r64ql   1/1     Running   0          23s   10.244.1.2   multin
 
 모든 노드에 Quarkus Pod 인스턴스가 하나씩 배포된 것을 확인할 수 있습니다.
 
-=== 정리
+== 실습 환경 정리
 
 [.console-input]
 [source,bash,subs="+macros,+attributes"]

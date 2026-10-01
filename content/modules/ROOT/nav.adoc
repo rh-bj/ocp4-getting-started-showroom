@@ -1,5 +1,5 @@
-* 1. 요구 사항
-** xref:installation.adoc[환경 준비]
+* 1. 실습 환경 접속 정보
+** xref:installation.adoc[접속]
 *** xref:installation.adoc#start-kubernetes[환경 확인하기]
 *** xref:installation.adoc#tutorial-all-local[CLI]
 
