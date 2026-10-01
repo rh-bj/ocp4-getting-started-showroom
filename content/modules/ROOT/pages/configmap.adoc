@@ -82,12 +82,12 @@ MyRESTController.java의 일부 코드는 다음과 같습니다.
    public String configure() {
         String databaseConn = environment.getProperty("DBCONN","Default");
         String msgBroker = environment.getProperty("MSGBROKER","Default");
-        String hello = environment.getProperty("GREETING","Default");
+        String greeting = environment.getProperty("GREETING","Default");
         String love = environment.getProperty("LOVE","Default");
         return "Configuration: \n"
             + "databaseConn=" + databaseConn + "\n"
             + "msgBroker=" + msgBroker + "\n"
-            + "hello=" + hello + "\n"
+            + "greeting=" + greeting + "\n"
             + "love=" + love + "\n";
    }
 ----
@@ -277,7 +277,7 @@ include::partial$describe-deployment.adoc[]
 ...
   Containers:
    myboot:
-    Image:      quay.io/burrsutter/myboot:v1
+    Image:      quay.io/rhdevelopers/myboot:v1
     Port:       8080/TCP
     Host Port:  0/TCP
     Environment:
