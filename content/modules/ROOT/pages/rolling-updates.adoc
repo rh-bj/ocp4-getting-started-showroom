@@ -19,7 +19,7 @@ Deployment의 이미지가 바뀌면 새 버전(revision)의 ReplicaSet이 만�
 (터미널 탭을 새로 열 때마다 wksp-{user} 프로젝트로 돌아가니 아래 명령어를 꼭 실행해주세요)
 
 :set-namespace: myspace
-include::partial$set-context.adoc[]
+include::partial$new-terminal.adoc[]
 
 === 'Resource Requests & Limits' 파트에서 사용한 deployment를 삭제한 경우
 
@@ -101,6 +101,10 @@ EOF
 
 === 실습 시작
 
+터미널 1에서는 Pod를 관찰하고, 
+터미널 2에서는 curl 명령어를 사용하여 서비스를 반복 호출하고, 
+터미널 3에서는 다양한 명령어를 실행해보겠습니다.
+
 먼저 터미널 1에서는 Pod를 지켜봅니다.
 
 include::partial$watching-pods.adoc[]
@@ -112,7 +116,7 @@ include::partial$watching-pods.adoc[]
 터미널 2::
 +
 --
-(이전 실습에서 터미널 2에서 실행했던 loop 스크립트가 계속 돌고 있다면 그대로 두세요)
+(이전 실습에서 터미널 2에서 실행했던 loop 스크립트가 계속 돌고 있다면 그대로 두고 다음을 실행하지 않아도 됩니다)
 
 :service-exposed: myboot
 [.console-input]
@@ -130,7 +134,7 @@ include::partial$loop.adoc[]
 ====
 
 
-터미널 3에서는 
+터미널 3에서는 Deployment를 수정해보겠습니다.
 
 [tabs]
 ====
@@ -277,6 +281,8 @@ Aloha from Spring Boot! 212 on myboot-d78fb6d58-2fqml
 Bonjour from Spring Boot! 0 on myboot-7fbc4b97df-4ntmk
 Bonjour from Spring Boot! 1 on myboot-7fbc4b97df-4ntmk
 ----
+--
+====
 
 [IMPORTANT]
 ====
@@ -320,9 +326,12 @@ oc set image deployment/myboot myboot=quay.io/rhdevelopers/myboot:v2
 ----
 ====
 
---
-====
 
+[tabs]
+====
+터미널 3::
++
+--
 deployment의 상태를 확인합니다:
 
 [#rollout-v2-rolling]
@@ -388,6 +397,16 @@ Events:
 oc rollout history deployment/myboot
 ----
 
+[.console-output]
+[source, bash]
+----
+deployment.apps/myboot 
+REVISION  CHANGE-CAUSE
+1         <none>
+2         <none>
+3         <none>
+----
+
 다음 명령으로 v2로 롤백할 수 있습니다:
 
 [#describe-rollback-rolling]
@@ -397,9 +416,17 @@ oc rollout history deployment/myboot
 oc rollout undo deployment/myboot --to-revision=2
 ----
 
-(만약 '리소스와 제한' 실습에서 생성했던 Deployment를 삭제하고 '롤링 업데이트' 실습에서 새로 만들었다면, v1으로 롤백하세요.)
+(만약 'myboot' Deployment를 이번 '롤링 업데이트' 실습에서 새로 만들었다면, v1으로 롤백하세요.)
+--
+====
 
-그러면 Aloha로 롤백됩니다:
+그러면 Aloha로 롤백되는 것을 터미널 2를 통해 확인할 수 있습니다.
+
+[tabs]
+====
+터미널 2::
++
+--
 
 [.console-output]
 [source,bash]
@@ -408,10 +435,14 @@ Bonjour from Spring Boot! 501 on myboot-7fbc4b97df-qtkzj
 Bonjour from Spring Boot! 502 on myboot-7fbc4b97df-qtkzj
 Aloha from Spring Boot! 0 on myboot-d78fb6d58-vnlch
 ----
+--
+====
 
-= 정리
+
+== 실습 환경 정리
 
 터미널 1과 2에서 kbd:[CTRL+c]를 눌러 실행 중인 명령어를 취소하고, 생성했던 리소스들을 정리합니다.
+
 
 [#clean-up]
 [.console-input]

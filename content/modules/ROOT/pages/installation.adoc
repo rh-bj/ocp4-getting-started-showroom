@@ -63,7 +63,7 @@ oc project
 [IMPORTANT]
 ====
 복사한 텍스트를 웹터미널에 붙여넣을 때, 환경에 따라 붙여넣기 단축키가 다르게 작용할 수 있습니다. 
-Windows 사용자라면 krb:[CTRL+SHIFT+v] 또는 krb:[Shift+Insert]를, Mac 사용자라면 krb:[command+v]를 눌러 텍스트를 붙여넣으세요.
+Windows 사용자라면 kbd:[Ctrl+Shift+v] 또는 kbd:[Shift+Insert]를, Mac 사용자라면 kbd:[Command+v]를 눌러 텍스트를 붙여넣으세요.
 ====
 
 ``oc whoami``는 현재 로그인되어 있는 사용자를, ``oc project``는 명령을 실행했을 때 기본적으로 리소스가 생성될 네임스페이스(OpenShift에서는 이를 "프로젝트"라고도 부릅니다)를 보여줍니다. 아마 ``wksp-{user}``가 표시될 텐데, 이는 실습을 시작할 수 있도록 여러분만을 위해 미리 만들어 둔 프로젝트입니다.
