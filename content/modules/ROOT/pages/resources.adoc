@@ -1,5 +1,6 @@
 = Resource Requests & Limits
 include::vars.adoc[]
+include::_attributes.adoc[]
 :section-k8s: resource-limit
 
 == 배경지식: 요청(Requests)과 제한(Limits)
@@ -339,7 +340,7 @@ include::partial$watching-pods.adoc[]
 +
 --
 :set-namespace: myspace
-include::partial$set-context.adoc[]
+include::partial$new-terminal.adoc[]
 
 :section-k8s: resource-soft-limit
 :service-exposed: myboot
@@ -368,7 +369,7 @@ include::partial$loop.adoc[]
 +
 --
 :set-namespace: myspace
-include::partial$set-context.adoc[]
+include::partial$new-terminal.adoc[]
 
 먼저 Pod에 설정된 리소스의 요청과 제한 값을 확인합니다.
 

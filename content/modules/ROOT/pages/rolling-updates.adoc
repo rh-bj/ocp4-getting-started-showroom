@@ -1,5 +1,6 @@
 = Rolling Updates
 include::vars.adoc[]
+include::_attributes.adoc[]
 :section-k8s: rolling
 
 IMPORTANT: 이 실습은 직전의 `Resource Requests & Limits` 실습 환경을 이어서 사용합니다.
@@ -116,7 +117,10 @@ include::partial$watching-pods.adoc[]
 터미널 2::
 +
 --
-(이전 실습에서 터미널 2에서 실행했던 loop 스크립트가 계속 돌고 있다면 그대로 두고 다음을 실행하지 않아도 됩니다)
+(이전 실습에서 터미널 2에서 실행했던 loop 스크립트가 계속 돌고 있다면 그대로 두고, 다음을 실행하지 않아도 됩니다)
+
+:set-namespace: myspace
+include::partial$new-terminal.adoc[]
 
 :service-exposed: myboot
 [.console-input]
@@ -141,6 +145,10 @@ include::partial$loop.adoc[]
 터미널 3::
 +
 --
+올바른 프로젝트에 있는지 확인합니다.
+
+:set-namespace: myspace
+include::partial$new-terminal.adoc[]
 
 Deployment를 describe(또는 `oc edit`)합니다:
 
@@ -441,7 +449,8 @@ Aloha from Spring Boot! 0 on myboot-d78fb6d58-vnlch
 
 == 실습 환경 정리
 
-터미널 1과 2에서 kbd:[CTRL+c]를 눌러 실행 중인 명령어를 취소하고, 생성했던 리소스들을 정리합니다.
+터미널 1과 2에서 kbd:[Ctrl+c]를 눌러 실행 중인 명령어를 취소하고, 생성했던 리소스들을 정리합니다.
+
 
 
 [#clean-up]

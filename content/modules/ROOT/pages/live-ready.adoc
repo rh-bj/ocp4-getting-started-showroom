@@ -1,10 +1,11 @@
 = Liveness와 Readiness
 include::vars.adoc[]
+include::_attributes.adoc[]
 :section-k8s: liveready
 
 == 배경지식: Liveness와 Readiness
 
-쿠버네티스는 컨테이너가 정상인지를 스스로 판단하지 못합니다. 프로세스가 살아 있어도 내부적으로 멈춰 있거나(데드락 등), 아직 요청을 받을 준비가 안 되어 있을 수 있기 때문입니다. 이를 알려주기 위한 것이 __probe__입니다:
+쿠버네티스는 컨테이너가 정상인지를 스스로 판단하지 못합니다. 프로세스가 살아 있어도 내부적으로 멈춰 있거나(데드락 등), 아직 요청을 받을 준비가 안 되어 있을 수 있기 때문입니다. 이를 알려주기 위한 것이 __probe__입니다.
 
 * __Liveness Probe__는 "이 컨테이너가 여전히 정상적으로 동작하고 있는가?"를 주기적으로 확인합니다. 실패하면 쿠버네티스는 그 컨테이너를 __재시작__합니다.
 * __Readiness Probe__는 "이 컨테이너가 지금 트래픽을 받을 준비가 되었는가?"를 확인합니다. 실패해도 컨테이너를 재시작하지는 않지만, 그 Pod를 Service의 Endpoints 목록에서 __일시적으로 제외__시켜서 트래픽이 오지 않게 합니다.
@@ -36,6 +37,8 @@ oc get all
 Warning: apps.openshift.io/v1 DeploymentConfig is deprecated in v4.14+, unavailable in v4.10000+
 No resources found in user35-myspace namespace.
 ----
+
+=== Probe가 설정된 앱 배포
 
 :quick-open-file: myboot-deployment-live-ready.yml
 
@@ -115,7 +118,7 @@ include::partial$describe-deployment.adoc[]
 ...
 ----
 
-`delay`(시작 후 첫 검사까지 대기 시간), `period`(검사 주기), `timeout`(응답 대기 시간), `failure`(연속 실패 허용 횟수) 값을 보면, 이 Probe가 얼마나 자주, 얼마나 관대하게 검사하는지 알 수 있습니다. Liveness는 `/alive` 경로를, Readiness는 ``/health``라는 별도의 경로를 사용하고 있는 것도 눈여겨보세요 — 두 Probe가 서로 다른 기준으로 애플리케이션을 검사할 수 있다는 뜻입니다.
+`delay`(시작 후 첫 검사까지 대기 시간), `timeout`(응답 대기 시간), `period`(검사 주기), `failure`(연속 실패 허용 횟수) 값을 보면, 이 Probe가 얼마나 자주, 얼마나 관대하게 검사하는지 알 수 있습니다. Liveness는 `/alive` 경로를, Readiness는 ``/health``라는 별도의 경로를 사용하고 있는 것도 눈여겨보세요 — 두 Probe가 서로 다른 기준으로 애플리케이션을 검사할 수 있다는 뜻입니다.
 
 Service를 배포합니다:
 
@@ -148,20 +151,41 @@ replicas 변경:
 oc scale deployment myboot --replicas=3
 ----
 
-* *Terminal#2에서 작업*
 
-:section-k8s: liveready
+[tabs]
+====
+터미널 2::
++
+--
+
+올바른 프로젝트에 있는지 확인합니다.
+
+:set-namespace: myspace
+include::partial$new-terminal.adoc[]
+
 :service-exposed: myboot
-include::partial$env-curl.adoc[]
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+IP=$(oc get service {service-exposed} -o jsonpath="{.spec.clusterIP}")
+PORT=$(oc get service {service-exposed} -o jsonpath="{.spec.ports[*].port}")
+----
 
 그리고 loop 스크립트를 실행합니다:
 
 :curl-loop-sleep-time: 1
 include::partial$loop.adoc[]
+--
+====
 
-이미지를 변경합니다:
 
-* *Terminal#1에서 작업*
+터미널 1에서 이미지를 변경합니다:
+
+[tabs]
+====
+터미널 1::
++
+--
 
 [#change-deployment-v2-live-ready]
 [.console-input]
@@ -169,11 +193,17 @@ include::partial$loop.adoc[]
 ----
 oc set image deployment/myboot myboot=quay.io/rhdevelopers/myboot:v2
 ----
+--
+====
 
-그리고 오류 없이 진행되는 롤링 업데이트를 확인하세요:
 
-* *Terminal#2에서 확인*
+그리고 롤링 업데이트가 이전 실습(롤링 업데이트)과 달리 오류 없이 진행되는 것을 확인하세요.
 
+[tabs]
+====
+터미널 2::
++
+--
 [.console-output]
 [source.bash]
 ----
@@ -187,9 +217,16 @@ Aloha from Spring Boot! 133 on myboot-845968c6ff-k4rvb
 Aloha from Spring Boot! 137 on myboot-845968c6ff-9wvt9
 Bonjour from Spring Boot! 3 on myboot-8449d5468d-m88z4
 ----
+--
+====
 
 Endpoints를 확인해서 어떤 pod가 Service에 속해 있는지 봅니다:
 
+[tabs]
+====
+터미널 1::
++
+--
 [#get-endpoints-before]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
@@ -206,27 +243,52 @@ oc get endpointslice -l kubernetes.io/service-name=myboot -o json | jq -r '.item
 "10.130.2.37"
 "10.130.2.38"
 ----
+--
+====
 
-== Readiness Probe
+=== Readiness Probe
 
-이 실습용 애플리케이션에는 스스로를 일부러 비정상 상태로 만드는 ``/misbehave``라는 디버그용 엔드포인트가 있습니다. Pod 하나에 exec로 접속해서 이 엔드포인트를 호출해, readiness 플래그를 실패 상태로 바꿔 봅시다:
+이 실습용 애플리케이션에는 스스로를 일부러 비정상 상태로 만드는 ``/misbehave``라는 디버그용 엔드포인트가 있습니다. 
 
+터미널 1에서 Pod 하나에 exec로 접속해서 이 엔드포인트를 호출해, readiness 플래그를 실패 상태로 바꿔 봅시다:
+
+[tabs]
+====
+터미널 1::
++
+--
 [#misbehave-app-live-ready]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
 oc exec -it deployment/myboot -- /bin/bash
 ----
+--
+====
 
+위 명령어를 실행하면 myboot Pod 내부에 접속하게 됩니다. `/misbehave`` 엔드포인트를 호출한 뒤 해당 컨테이너에서 나오는 명령어를 실행합니다.
+
+[tabs]
+====
+터미널 1, 컨테이너 내부::
++
+--
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
 curl localhost:8080/misbehave
 exit
 ----
+--
+====
 
 이제 pod가 더 이상 Ready 상태가 아닌 것을 확인합니다:
 
+[tabs]
+====
+터미널 1::
++
+--
 [.console-input]
 [source, bash]
 ----
@@ -259,9 +321,16 @@ oc get endpointslice -l kubernetes.io/service-name=myboot -o json | jq -r '.item
 "10.130.2.37"
 "10.130.2.38"
 ----
+--
+====
 
-이는 curl loop에서도 명확하게 드러납니다:
+이는 터미널 2의 curl loop에서도 명확하게 드러납니다. (pod의 이름을 살펴보시면 2가지 이름만 보이는 것을 확인할 수 있습니다.)
 
+[tabs]
+====
+터미널 2::
++
+--
 [.console-output]
 [source.bash]
 ----
@@ -269,11 +338,18 @@ Aloha from Spring Boot! 845 on myboot-845968c6ff-9wshg
 Aloha from Spring Boot! 604 on myboot-845968c6ff-zsgx2
 Aloha from Spring Boot! 846 on myboot-845968c6ff-9wshg
 ----
+--
+====
 
-== Liveness Probe
+=== Liveness Probe
 
 이번에는 Readiness가 아니라 Liveness Probe를 실패시켜서, 앞서와 다르게 __Pod 자체가 재시작__된다는 것을 확인해 봅시다. 먼저 v3 이미지로 업데이트합니다:
 
+[tabs]
+====
+터미널 1::
++
+--
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
@@ -296,9 +372,17 @@ myboot-56659c9d69-6sglj   1/1     Running   0          2m2s
 myboot-56659c9d69-mdllq   1/1     Running   0          97s
 myboot-56659c9d69-zjt6q   1/1     Running   0          72s
 ----
+--
+====
 
-curl loop/poller에서 이미지 변경에 따른 변화를 볼 수 있습니다.
 
+터미널 2의 curl loop에서 이미지 변경에 따른 변화를 볼 수 있습니다.
+
+[tabs]
+====
+터미널 2::
++
+--
 [.console-output]
 [source.bash]
 ----
@@ -307,9 +391,16 @@ Jambo from Spring Boot! 40 on myboot-56659c9d69-mdllq
 Jambo from Spring Boot! 26 on myboot-56659c9d69-zjt6q
 Jambo from Spring Boot! 71 on myboot-56659c9d69-6sglj
 ----
+--
+====
 
 v3 이미지에는 ``/shot``이라는 디버그용 엔드포인트가 있어서, 호출하면 애플리케이션이 (마치 데드락에 걸린 것처럼) 더 이상 응답하지 않는 상태를 흉내 냅니다. 이제 pod 중 하나를 골라 ``exec``로 접속해서 총을 쏴 봅니다:
 
+[tabs]
+====
+터미널 1::
++
+--
 [#shot-v3-live-ready]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
@@ -349,8 +440,10 @@ myboot-558b4f8678-z7f9n   1/1     Running   0          3m44s
 ----
 I have been shot in the head1000610000@myboot-558b4f8678-qbrgc:/app$ command terminated with exit code 137
 ----
+--
+====
 
-== 정리
+=== 실습 환경 정리
 
 [#cleanup-live-ready]
 [.console-input]
@@ -359,7 +452,7 @@ I have been shot in the head1000610000@myboot-558b4f8678-qbrgc:/app$ command ter
 oc delete deployment myboot
 ----
 
-== Startup Probe
+== 실습: Startup Probe
 
 일부 응용 프로그램은 처음 초기화할 때 추가 시작 시간이 필요합니다.
 
@@ -543,7 +636,7 @@ NAME                      READY   STATUS    RESTARTS   AGE
 myboot-579cc5cc47-2bk5p   0/1     Running   0          67s
 ----
 
-결국 curl loop에서 pod가 실행 중인 것을 확인할 수 있습니다.
+터미널 2를 확인해보면, curl loop에서 pod가 실행 중인 것을 확인할 수 있습니다.
 
 ----
 Aloha from Spring Boot! 18 on myboot-849ccd6948-8vrfq
@@ -552,7 +645,7 @@ Aloha from Spring Boot! 20 on myboot-849ccd6948-8vrfq
 Aloha from Spring Boot! 21 on myboot-849ccd6948-8vrfq
 ----
 
-== 정리
+== 실습 환경 정리
 
 [.console-input]
 [source,bash,subs="+macros,+attributes"]

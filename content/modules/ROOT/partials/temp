@@ -79,7 +79,7 @@ oc delete route the-service
 
 [tabs]
 ====
-터미널 1::
+터미널 2::
 +
 --
 
