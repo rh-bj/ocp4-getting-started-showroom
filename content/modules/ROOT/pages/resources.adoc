@@ -341,7 +341,14 @@ include::partial$watching-pods.adoc[]
 include::partial$set-context.adoc[]
 
 :section-k8s: resource-soft-limit
-:service-exposed: myboot
+:tmp-service-exposed: {service-exposed}
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+IP=$(oc get service {tmp-service-exposed} -o jsonpath="{.spec.clusterIP}")
+PORT=$(oc get service {tmp-service-exposed} -o jsonpath="{.spec.ports[*].port}")
+----
 
 반복해서 실행합니다:
 
@@ -352,7 +359,7 @@ include::partial$loop.adoc[]
 ====
 
 
-터미널 3에서는 메로리를 많이 소비하는 `/consume` 엔드포인트에 curl 요청을 보냅니다:
+터미널 3에서는 메모리를 많이 소비하는 `/consume` 엔드포인트에 curl 요청을 보냅니다:
 
 [tabs]
 ====
@@ -378,16 +385,25 @@ oc get $PODNAME -o jsonpath='{.spec.containers[*].resources}'
 {
   "limits": {
     "cpu": "1",
-    "memory": "400Mi"
+    "memory": "600Mi"
   },
   "requests": {
     "cpu": "250m",
-    "memory": "300Mi"
+    "memory": "400Mi"
   }
 }
 ----
 
 그런 다음 메모리를 많이 소비하는 `/consume` 엔드포인트에 `curl` 요청을 보내서, 이 Pod의 Limit이 실제로 지켜지는지 확인해 봅시다:
+
+:tmp-service-exposed: {service-exposed}
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+IP=$(oc get service {tmp-service-exposed} -o jsonpath="{.spec.clusterIP}")
+PORT=$(oc get service {tmp-service-exposed} -o jsonpath="{.spec.ports[*].port}")
+----
 
 [#consume-sane-limit-resource]
 [.console-input]
@@ -408,14 +424,13 @@ curl: (52) Empty reply from server
 ====
 
 
-그리고 터미널 2에서 실행 중이던 loop도 실패하는 것을 확인할 수 있습니다:
+그리고 터미널 2을 다시 확인하면, 실행 중이던 loop도 실패하는 것을 확인할 수 있습니다:
 
 [tabs]
 ====
 터미널 2::
 +
 --
-* *Terminal#2에서 확인*
 [.console-output]
 [source,bash]
 ----
@@ -425,8 +440,6 @@ curl: (56) Recv failure: Connection reset by peer
 --
 ====
 
-
-* *Terminal#1에서 확인*
 터미널 1로 다시 돌아와보면, Pod가 OOMKilled로 인해 곧 재시작되는 것을 확인할 수 있습니다.
 
 [.console-output]
