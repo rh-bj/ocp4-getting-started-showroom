@@ -1,18 +1,18 @@
-= Liveness와 Readiness
+= Readiness와 Liveness
 include::vars.adoc[]
 include::_attributes.adoc[]
 :section-k8s: liveready
 
-== 배경지식: Liveness와 Readiness
+== 배경지식: Readiness와 Liveness
 
 쿠버네티스는 컨테이너가 정상인지를 스스로 판단하지 못합니다. 프로세스가 살아 있어도 내부적으로 멈춰 있거나(데드락 등), 아직 요청을 받을 준비가 안 되어 있을 수 있기 때문입니다. 이를 알려주기 위한 것이 __probe__입니다.
 
-* __Liveness Probe__는 "이 컨테이너가 여전히 정상적으로 동작하고 있는가?"를 주기적으로 확인합니다. 실패하면 쿠버네티스는 그 컨테이너를 __재시작__합니다.
 * __Readiness Probe__는 "이 컨테이너가 지금 트래픽을 받을 준비가 되었는가?"를 확인합니다. 실패해도 컨테이너를 재시작하지는 않지만, 그 Pod를 Service의 Endpoints 목록에서 __일시적으로 제외__시켜서 트래픽이 오지 않게 합니다.
+* __Liveness Probe__는 "이 컨테이너가 여전히 정상적으로 동작하고 있는가?"를 주기적으로 확인합니다. 실패하면 쿠버네티스는 그 컨테이너를 __재시작__합니다.
 
 이번 장에서는 이 두 Probe를 실제로 실패시켜 보면서 각각 어떤 다른 반응이 일어나는지 직접 확인해 봅니다.
 
-== 실습: Liveness와 Readiness
+== 실습: Readiness와 Liveness
 === 사전 준비
 
 터미널 1에서 올바른 프로젝트에 있는지 확인합니다.
@@ -179,7 +179,7 @@ include::partial$loop.adoc[]
 ====
 
 
-터미널 1에서 이미지를 변경합니다:
+터미널 1에서 이미지를 새로운 버전으로 변경합니다.
 
 [tabs]
 ====
@@ -197,7 +197,12 @@ oc set image deployment/myboot myboot=quay.io/rhdevelopers/myboot:v2
 ====
 
 
-그리고 롤링 업데이트가 이전 실습(롤링 업데이트)과 달리 오류 없이 진행되는 것을 확인하세요.
+그리고 터미널 2를 계속 바라보면서, 롤링 업데이트가 이전 실습(롤링 업데이트)과 달리 오류 없이 진행되는 것을 확인하세요.
+
+이전 실습에서는 애플리케이션이 실제로 요청을 받을 준비가 되었는지 확인하지 않고 그냥 순차적으로 Pod를 교체했기 때문에 curl loop에서 오류 메시지가 보였지만,
+지금은 애플리케이션이 실제로 요청을 받을 준비가 되었는지 확인하는 Readiness Probe를 설정했기 때문에 curl loop에서 오류 메시지가 보이지 않으면서 애플리케이션이 교체되는 것을 확인할 수 있습니다.
+
+(점차 전환되다가 결국 'Bonjour from Spring Boot!'만 남게 됩니다)
 
 [tabs]
 ====
@@ -220,7 +225,7 @@ Bonjour from Spring Boot! 3 on myboot-8449d5468d-m88z4
 --
 ====
 
-Endpoints를 확인해서 어떤 pod가 Service에 속해 있는지 봅니다:
+터미널 1에서 Endpoints를 확인해서 어떤 pod가 Service에 속해 있는지 봅니다:
 
 [tabs]
 ====
@@ -231,10 +236,11 @@ Endpoints를 확인해서 어떤 pod가 Service에 속해 있는지 봅니다:
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc get endpointslice -l kubernetes.io/service-name=myboot -o json | jq -r '.items[].endpoints[].addresses[]'
+oc get endpoints myboot -o json | jq '.subsets[].addresses[].ip'
 ----
 
-다음은 readiness probe를 통과한 Pod IP들입니다:
+다음과 같이 readiness probe를 통과한 Pod IP들이 총 3개가 보입니다. Readiness Probe를 통과한 Pod들은 모두 서비스가 가능한 상태라고 판단되므로, 3개 Pod 모두 Service를 통해 접근할 수 있습니다. 
+(실습 환경에서 보이는 실제 IP 값은 아래 값과 다를 겁니다)
 
 [.console-output]
 [source.bash]
@@ -266,7 +272,7 @@ oc exec -it deployment/myboot -- /bin/bash
 --
 ====
 
-위 명령어를 실행하면 myboot Pod 내부에 접속하게 됩니다. `/misbehave`` 엔드포인트를 호출한 뒤 해당 컨테이너에서 나오는 명령어를 실행합니다.
+위 명령어를 실행하면 myboot Pod 내부에 접속하게 됩니다. ``/misbehave`` 엔드포인트를 호출한 뒤 해당 컨테이너에서 나오는 명령어를 실행합니다.
 
 [tabs]
 ====
@@ -292,7 +298,7 @@ exit
 [.console-input]
 [source, bash]
 ----
-oc get pods
+watch oc get pods
 ----
 
 [.console-output]
@@ -304,16 +310,16 @@ myboot-845968c6ff-k5lcb   0/1     Running   0          12m
 myboot-845968c6ff-zsgx2   1/1     Running   0          11m
 ----
 
-이제 Endpoints를 확인합니다:
+Pod 중 1개의 READY 상태가 '0/1'로 변경된 것을 확인하면, kbd:[Ctrl+c]를 눌러 ``watch`` 명령을 취소하고, 이어서 Endpoints를 확인합니다:
 
 [#get-endpoints-after]
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc get endpointslice -l kubernetes.io/service-name=myboot -o json | jq -r '.items[].endpoints[].addresses[]'
+oc get endpoints myboot -o json | jq '.subsets[].addresses[].ip'
 ----
 
-그리고 해당 pod가 Service의 로드밸런서에서 빠진 것을 확인합니다:
+그리고 Pod IP 1개가 Service의 로드밸런서에서 빠진 것을 확인합니다:
 
 [.console-output]
 [source.bash]
@@ -337,6 +343,9 @@ oc get endpointslice -l kubernetes.io/service-name=myboot -o json | jq -r '.item
 Aloha from Spring Boot! 845 on myboot-845968c6ff-9wshg
 Aloha from Spring Boot! 604 on myboot-845968c6ff-zsgx2
 Aloha from Spring Boot! 846 on myboot-845968c6ff-9wshg
+Aloha from Spring Boot! 604 on myboot-845968c6ff-zsgx2
+Aloha from Spring Boot! 845 on myboot-845968c6ff-9wshg
+Aloha from Spring Boot! 604 on myboot-845968c6ff-zsgx2
 ----
 --
 ====
@@ -361,7 +370,7 @@ oc set image deployment/myboot myboot=quay.io/rhdevelopers/myboot:v3
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-oc get pods -w
+watch oc get pods
 ----
 
 [.console-output]
@@ -373,10 +382,13 @@ myboot-56659c9d69-mdllq   1/1     Running   0          97s
 myboot-56659c9d69-zjt6q   1/1     Running   0          72s
 ----
 --
+
+교체가 완료된 것을 확인했으면 kbd:[Ctrl+c]를 눌러 watch 명령을 취소합니다.
+
 ====
 
 
-터미널 2의 curl loop에서 이미지 변경에 따른 변화를 볼 수 있습니다.
+터미널 2의 curl loop에서 이미지 변경에 따른 변화를 볼 수 있습니다. (Bonjour --> Jambo)
 
 [tabs]
 ====
@@ -419,10 +431,27 @@ curl localhost:8080/shot
 ----
 I have been shot in the head1000610000@myboot-558b4f8678-qbrgc:/app$ command terminated with exit code 137
 ----
-
+--
+====
 
 Liveness Probe가 몇 차례 연속으로 실패하면, 쿠버네티스는 이 컨테이너가 되돌릴 수 없는 상태에 빠졌다고 판단하고 강제로 재시작합니다. 
-잠시 기다린 후 다른 터미널에서 RESTARTS 열의 숫자가 올라간 것을 확인해 보세요(몇 분 간 기다려야할 수 있습니다):
+터미널 3에서 RESTARTS 열의 숫자가 올라간 것을 확인해 보세요(몇 분 간 기다려야할 수 있습니다):
+
+[tabs]
+====
+터미널 3::
++
+--
+올바른 프로젝트에 있는지 확인합니다.
+
+:set-namespace: myspace
+include::partial$new-terminal.adoc[]
+
+[.console-input]
+[source,bash,subs="+macros,+attributes"]
+----
+watch oc get pods
+----
 
 [.console-output]
 [source.bash]
@@ -433,7 +462,19 @@ myboot-558b4f8678-qbrgc   1/1     Running   1          4m29s
 myboot-558b4f8678-z7f9n   1/1     Running   0          3m44s
 ----
 
-컨테이너 자체가 통째로 재시작되므로, 그 컨테이너 안에 붙어 있던 exec 세션도 함께 강제 종료됩니다(종료 코드 ``137``은 ``SIGKILL``로 강제 종료되었다는 의미입니다):
+--
+====
+
+
+컨테이너 자체가 통째로 재시작되므로, 터미널 1에서 그 컨테이너 안에 붙어 있던 exec 세션도 함께 강제 종료됩니다(종료 코드 ``137``은 ``SIGKILL``로 강제 종료되었다는 의미입니다):
+
+
+[tabs]
+====
+터미널 1::
++
+--
+다음과 같이 세션이 강제 종료된 것을 확인할 수 있습니다.
 
 [.console-output]
 [source.bash]
@@ -452,15 +493,19 @@ I have been shot in the head1000610000@myboot-558b4f8678-qbrgc:/app$ command ter
 oc delete deployment myboot
 ----
 
-== 실습: Startup Probe
+
+== 배경지식: Readiness와 Liveness
 
 일부 응용 프로그램은 처음 초기화할 때 추가 시작 시간이 필요합니다.
 
-실행 시간 동안 이상을 감지하고 긴 시작 시간을 처리하기 위해 정상적인 동작을 구성해야 하기 때문에 이 시나리오를 활성/준비 프로브에 적용하는 것은 까다로울 수 있습니다.
+실행 시간 동안 이상을 감지하고 긴 시작 시간을 처리하기 위해 정상적인 동작을 구성해야 하기 때문에 이 시나리오를 Readiness/Liveness 프로브에 적용하는 것은 까다로울 수 있습니다.
 
 예를 들어, 교착 상태에 빠질 수 있는 애플리케이션이 있고 이러한 문제를 즉시 파악하고 싶다면 다음과 같이 짧은 응답시간의 활성 및 준비 상태 프로브를 설정할 수 있습니다.
 
-아래 Deployment를 배포합니다.
+== 실습: Startup Probe
+=== Startup Probe
+
+터미널 1에서 아래 Deployment를 배포합니다.
 
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
@@ -508,10 +553,27 @@ spec:
           periodSeconds: 3
 EOF
 ----
-NOTE: 해당 probe 설정은 timeout 시간이 매우 짧은 것을 볼 수 있습니다.
+NOTE: 이 Deployment의 probe 설정은 이전 Deployment와 달리, 초기에 상태 검사를 잠시 지연시키는 initialDelaySeconds가 설정되어 있지 않습니다.
 
-pod를 계속 감시해보면 계속해서 다시 시작되는 것을 볼 수 있으며, 때로는 성공적으로 부팅된 이후에도(kubelet이 재시작을 예약하기 때문에) pod가 계속 재시작되는데, 이는 SpringBoot가 시작되는 데에 오래 걸려서 Probe에 결국 실패하기 때문입니다.
+터미널 3에서 이 Pod를 계속 감시해보면 계속해서 다시 시작되는 것을 볼 수 있으며(RESTARTS 수가 올라감), 때로는 성공적으로 부팅된 이후에도(kubelet이 재시작을 예약하기 때문에) pod가 계속 재시작되는데, 이는 SpringBoot가 시작되는 데에 오래 걸려서 Probe에 결국 실패하기 때문입니다.
 
+[tabs]
+====
+터미널 3::
++
+--
+NAME                      READY   STATUS    RESTARTS      AGE
+myboot-7cd57cbff4-b7cqp   1/1     Running   3 (22s ago)   2m5s
+--
+====
+
+[tabs]
+====
+터미널 1::
++
+--
+
+Pod의 상태를 확인햅봅니다.
 
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
@@ -536,13 +598,16 @@ Events:
   Warning  Unhealthy  19s (x10 over 88s)  kubelet            Readiness probe failed: Get "http://172.17.0.4:8080/health": dial tcp 172.17.0.4:8080: connect: connection refused
 ----
 
-**Startup probe**는 이 문제를 해결해 줍니다. startup probe를 통과하기 전까지는 liveness나 readiness probe를 진행하지 않으며, startup probe가 한 번 성공하고 나면 나머지 probe들이 상태 검사를 시작하게 됩니다.
+``Liveness probe failed``, ``Readiness probe failed`` 같은 메시지가 보이며, ``Created``, ``Started``, ``Killing`` 등의 동작을 계속 반복하고 있음을 알 수 있습니다.
+--
+====
 
-초기 기동 시간이 오래 걸리는 애플리케이션 등에 유용하게 활용할 수 있습니다.
+**Startup probe**는 애플리케이션 초기화 시간 때문에 생기는 이러한 문제를 해결해 줍니다. startup probe를 통과하기 전까지는 liveness나 readiness probe를 진행하지 않으며, startup probe가 한 번 성공하고 나서야 나머지 probe들이 상태 검사를 시작하게 됩니다.
+따라서 초기 기동 시간이 오래 걸리는 애플리케이션 등에 유용하게 활용할 수 있습니다.
 
 :quick-open-file: myboot-deployment-startup-live-ready.yml
 
-``{quick-open-file}``은 바로 이런 probe를 가진 deployment의 예시입니다.
+아래의 ``{quick-open-file}``은 바로 이런 probe를 가진 deployment의 예시입니다.
 
 [.console-output]
 [source,yaml]
@@ -565,8 +630,13 @@ include::example$myboot-deployment-startup-live-ready.yml[]
           timeoutSeconds: 1
 ----
 
-그런 다음 해당 deployment를 적용합니다.
+startup probe가 추가된 이 deployment를 터미널 1에서 적용합니다.
 
+[tabs]
+====
+터미널 1::
++
+--
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
@@ -620,8 +690,10 @@ spec:
           timeoutSeconds: 1
 EOF
 ----
+--
+====
 
-startup probe는 애플리케이션이 시작되기까지 30초(`5 * 6`)를 기다립니다. 또한 liveness와 readiness 검사의 지연 시간이 0으로 줄어든 것도 확인하세요.
+위 startup probe는 애플리케이션이 시작되기까지 30초(`5 * 6`)를 기다립니다. 
 
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
@@ -636,7 +708,7 @@ NAME                      READY   STATUS    RESTARTS   AGE
 myboot-579cc5cc47-2bk5p   0/1     Running   0          67s
 ----
 
-터미널 2를 확인해보면, curl loop에서 pod가 실행 중인 것을 확인할 수 있습니다.
+터미널 2를 확인해보면, curl loop에서 이제 더이상 에러 메시지가 보이지 않고 pod가 실행 중인 것을 확인할 수 있습니다.
 
 ----
 Aloha from Spring Boot! 18 on myboot-849ccd6948-8vrfq
@@ -648,7 +720,7 @@ Aloha from Spring Boot! 21 on myboot-849ccd6948-8vrfq
 == 실습 환경 정리
 
 
-터미널 2에서 kbd:[Ctrl+c]를 눌러 실행 중인 명령어를 취소하고, 생성했던 리소스들을 정리합니다.
+터미널 1, 2, 3에서 kbd:[Ctrl+c]를 눌러 실행 중인 명령어를 취소하고, 생성했던 리소스들을 정리합니다.
 
 
 [.console-input]
