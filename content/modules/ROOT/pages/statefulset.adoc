@@ -1,7 +1,10 @@
 = StatefulSet
 include::vars.adoc[]
 include::_attributes.adoc[]
+:section-k8s: stateful
 :watch-terminal: 터미널 2
+
+== 배경지식: StatefulSet
 
 ``StatefulSet``은 **각 Pod에 고유하고 안정적인 식별자를 부여하면서 여러 Pod를 관리하는 컨트롤러**입니다.
 
@@ -72,23 +75,32 @@ myapp-2.<service-name>
 
 이제 StatefulSet을 직접 생성하면서 이러한 동작을 확인해 보겠습니다.
 
-== 준비
 
-=== 네임스페이스 설정
+== 실습: StatefulSet
+
+=== 사전 준비
 
 올바른 네임스페이스에 있는지 확인합니다:
 
-:section-k8s: volumes
 :set-namespace: myspace
 include::partial$new-terminal.adoc[]
 
-=== 터미널 지켜보기
+어떤 일이 벌어지는지 관찰할 수 있도록, 터미널 2에서 여러 작업을 실행하는 동안 발생하는 일을 ``watch``해 봅시다.
 
-어떤 일이 벌어지는지 관찰할 수 있도록, 다른 터미널(**{watch-terminal}**)을 열어서 여러 작업을 실행하는 동안 발생하는 일을 ``watch``해 봅시다.
+[tabs]
+====
+터미널 2::
++
+--
+올바른 프로젝트에 있는지 확인합니다.
+(터미널 탭을 새로 열 때마다 wksp-{user} 프로젝트로 돌아가니 아래 명령어를 꼭 실행해주세요)
 
-:section-k8s: stateful
+:set-namespace: myspace
+include::partial$new-terminal.adoc[]
 
-include::partial$watching-pods-with-nodes.adoc[]
+include::partial$watching-pods.adoc[]
+--
+====
 
 == StatefulSet
 
@@ -343,7 +355,7 @@ exit
 
 
 
-== Exposing StatefulSets
+=== Exposing StatefulSets
 
 앞에서 생성한 StatefulSet은 각 Pod에 **안정적인 네트워크 식별자**를 제공하기 위해 ``quarkus``라는 Headless Service를 사용합니다.
 Headless Service는 `spec.clusterIP` 값이 ``None``으로 설정되어 있습니다.

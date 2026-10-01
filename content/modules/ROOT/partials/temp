@@ -89,3 +89,14 @@ oc delete route the-service
 
 --
 ====
+
+
+
+다음 명령으로 새 Pod가 ``Running`` 상태가 되는 것을 기다릴 수 있습니다.
+
+[#wait-secret-rollout]
+[.console-input]
+[source,bash]
+----
+oc rollout status deployment/myboot
+----

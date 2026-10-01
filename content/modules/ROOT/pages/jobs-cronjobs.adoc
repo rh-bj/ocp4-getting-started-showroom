@@ -1,7 +1,10 @@
 = Job과 CronJob
 include::vars.adoc[]
 include::_attributes.adoc[]
+:section-k8s: cronjobs
 :watch-terminal: 터미널 2
+
+== 배경지식: Job과 CronJob
 
 대부분의 경우, 쿠버네티스는 들어오는 요청에 대한 응답을 처리하는 것이 목적인 "장기" 프로세스를 실행하는 플랫폼으로 사용됩니다.
 
@@ -11,26 +14,35 @@ include::_attributes.adoc[]
 
 쿠버네티스 CronJob은 Cron 패턴에 따라 반복되는 Job입니다.
 
-== 준비
 
-=== 네임스페이스 설정
+== 실습: Job과 CronJob
+=== 준비
 
-올바른 네임스페이스에 있는지 확인합니다:
+터미널 1에서 현재 올바른 네임스페이스에 있는지 확인합니다:
 
 :section-k8s: resource
 :set-namespace: myspace
 
 include::partial$new-terminal.adoc[]
 
-=== 터미널 지켜보기
+터미널 2에서 여러 job을 실행하는 동안 발생하는 일을 ``watch``해 봅시다.
 
-어떤 일이 벌어지는지 관찰할 수 있도록, 다른 터미널(**{watch-terminal}**)을 열어서 여러 job을 실행하는 동안 발생하는 일을 ``watch``해 봅시다.
+[tabs]
+====
+터미널 2::
++
+--
+올바른 프로젝트에 있는지 확인합니다.
+(터미널 탭을 새로 열 때마다 wksp-{user} 프로젝트로 돌아가니 아래 명령어를 꼭 실행해주세요)
 
-:section-k8s: cronjobs
+:set-namespace: myspace
+include::partial$new-terminal.adoc[]
 
-include::partial$watching-pods-with-nodes.adoc[]
+include::partial$watching-pods.adoc[]
+--
+====
 
-== Job
+=== Job
 
 :quick-open-file: whalesay-job.yaml
 
@@ -163,26 +175,13 @@ oc logs \
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-cat <<EOF | oc delete -f -
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: whale-say-job 
-spec:
-  template:
-    spec:
-      containers:
-      - name: whale-say-container
-        image: docker/whalesay
-        command: ["cowsay","Hello DevNation"]
-      restartPolicy: Never
-EOF
+oc delete job whale-say-job
 ----
 --
 ====
 
 
-== CronJob
+=== CronJob
 
 :quick-open-file: whalesay-cronjob.yaml
 
@@ -479,26 +478,7 @@ oc logs #-l job-name# --tail=-1
 [.console-input]
 [source,bash,subs="+macros,+attributes"]
 ----
-cat <<EOF | oc delete -f -
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: whale-say-cronjob
-spec:
-  schedule: "* * * * *" 
-  jobTemplate:                   
-    spec:                        
-      template:    
-        metadata:
-          labels:
-            job-type: whale-say #<.>              
-        spec:
-          containers:
-          - name: whale-say-container
-            image: docker/whalesay
-            command: ["cowsay","Hello DevNation"]
-          restartPolicy: Never
-EOF
+oc delete crobnjob whale-say-cronjob
 ----
 --
 ====
