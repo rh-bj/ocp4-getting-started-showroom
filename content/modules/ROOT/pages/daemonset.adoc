@@ -4,11 +4,93 @@ include::_attributes.adoc[]
 
 == 배경지식: DaemonSet
 
-지금까지 배운 Deployment는 "이 Pod를 N개 실행하라"고 지시할 뿐, __어느 노드__에서 실행할지는 스케줄러가 알아서 정합니다. 그런데 로그 수집기나 모니터링 에이전트처럼 __모든 노드마다 정확히 하나씩__ 떠 있어야 하는 종류의 워크로드도 있습니다. 이런 용도로 쓰이는 것이 DaemonSet입니다.
+지금까지 살펴본 ``Deployment``는 **원하는 개수의 Pod를 실행하고 유지하는 것**에 초점을 둡니다.
 
-DaemonSet은 모든 노드가 Pod의 복사본을 하나씩 실행하도록 보장합니다.
-클러스터에 노드가 추가되면 그 노드에도 Pod가 자동으로 추가됩니다.
-노드가 삭제되면 Pod는 다시 스케줄되지 않고 함께 삭제됩니다.
+예를 들어 replicas를 3개로 설정하면 Kubernetes는 Pod를 3개 실행하지만, 각 Pod가 **어느 Node에서 실행될지는 스케줄러가 결정**합니다.
+
+[source,text]
+----
+Deployment
+replicas: 3
+
+        ┌── Pod
+        ├── Pod
+        └── Pod
+
+어느 Node에서 실행될지는
+스케줄링 결과에 따라 결정
+----
+
+하지만 어떤 애플리케이션은 Pod의 개수보다 **각 Node에서 하나씩 실행되는 것**이 더 중요합니다.
+
+대표적인 예는 다음과 같습니다.
+
+* 각 Node의 로그를 수집하는 에이전트
+* 각 Node의 상태를 수집하는 모니터링 에이전트
+* 각 Node에서 동작해야 하는 네트워크 구성 요소
+* 각 Node에서 동작해야 하는 스토리지 구성 요소
+
+이러한 Node 단위의 워크로드를 실행하기 위해 사용하는 Kubernetes 리소스가 **DaemonSet**입니다.
+
+DaemonSet은 **대상이 되는 각 Node에 Pod 하나가 실행되도록 관리**합니다.
+
+예를 들어 대상 Node가 3개라면 다음과 같이 동작합니다.
+
+[source,text]
+----
+DaemonSet
+    │
+    ├── Worker Node 1 ── Pod
+    ├── Worker Node 2 ── Pod
+    └── Worker Node 3 ── Pod
+----
+
+Deployment와 달리 일반적으로 ``replicas`` 값을 직접 지정하지 않습니다.
+
+필요한 Pod 개수는 **DaemonSet Pod가 실행되어야 하는 Node의 개수에 따라 결정**되기 때문입니다.
+
+[source,text]
+----
+Deployment
+Node 수와 관계없이 replicas로 Pod 개수를 지정
+
+DaemonSet
+대상이 되는 Node마다 Pod 하나씩 실행
+----
+
+클러스터에 새로운 대상 Node가 추가되면 DaemonSet은 해당 Node에도 자동으로 Pod를 생성합니다.
+
+[source,text]
+----
+기존 상태
+
+Node 1 ── Pod
+Node 2 ── Pod
+
+       ↓ Node 3 추가
+
+Node 1 ── Pod
+Node 2 ── Pod
+Node 3 ── Pod  ← 자동 생성
+----
+
+반대로 Node가 클러스터에서 제거되면 해당 Node에서 실행되던 DaemonSet Pod도 함께 제거됩니다.
+
+이 Pod를 다른 Node에 하나 더 만들어 보충하지는 않습니다. DaemonSet의 목적은 **전체 Pod 개수를 일정하게 유지하는 것이 아니라 각 대상 Node에 필요한 Pod를 배치하는 것**이기 때문입니다.
+
+[NOTE]
+====
+DaemonSet이 반드시 클러스터의 **모든 Node**에 Pod를 실행한다는 의미는 아닙니다.
+
+``nodeSelector``, Node Affinity, Taint와 Toleration 등의 설정을 사용하면 특정 Node만 대상으로 지정할 수 있습니다.
+
+또한 OpenShift의 control-plane Node처럼 일반 애플리케이션의 실행이 제한된 Node에는 DaemonSet Pod가 배치되지 않을 수 있습니다.
+
+따라서 정확하게는 **"DaemonSet의 배치 조건을 만족하는 각 Node에 Pod를 하나씩 실행한다"**고 이해하는 것이 좋습니다.
+====
+
+이번 실습에서는 DaemonSet을 생성한 뒤 ``oc get pods -o wide`` 명령을 사용하여 **각 Worker Node에 DaemonSet Pod가 하나씩 배치되는 모습**을 확인합니다.
+
 
 == 실습: DaemonSet
 

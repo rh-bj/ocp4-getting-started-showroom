@@ -1,0 +1,712 @@
+= Job과 CronJob
+include::vars.adoc[]
+include::_attributes.adoc[]
+:section-k8s: cronjobs
+:watch-terminal: 터미널 2
+
+== 배경지식: Job과 CronJob
+
+지금까지 실습에서 주로 사용한 ``Deployment``는 웹 서버처럼 **계속 실행되면서 요청을 처리해야 하는 애플리케이션**에 적합합니다.
+
+하지만 모든 애플리케이션이 계속 실행되어야 하는 것은 아닙니다.
+
+예를 들어 다음과 같은 작업은 필요한 처리를 끝낸 뒤 종료되는 것이 정상입니다.
+
+* 데이터베이스 데이터 정리
+* 보고서 생성
+* 대량 데이터 처리
+* 백업
+* 특정 파일 변환
+* 일회성 관리 작업
+
+Kubernetes에서는 이러한 **작업을 실행하고 완료 여부를 관리하기 위해 Job**을 사용할 수 있습니다.
+
+=== Job
+
+``Job``은 하나 이상의 Pod를 생성하여 **정해진 작업이 성공적으로 완료될 때까지 실행을 관리하는 Kubernetes 리소스**입니다.
+
+가장 단순한 Job에서는 다음과 같은 흐름이 만들어집니다.
+
+[source,text]
+----
+Job
+ │
+ │ Pod 생성
+ ▼
+Pod
+ │
+ │ 작업 실행
+ ▼
+프로세스 종료
+ │
+ ▼
+Job Completed
+----
+
+일반적인 웹 애플리케이션에서는 프로세스가 종료되면 문제가 발생한 것으로 생각할 수 있지만, Job에서는 **작업을 성공적으로 끝내고 프로세스가 종료되는 것이 정상적인 동작**입니다.
+
+예를 들어 다음과 같은 작업을 실행한다고 가정해 보겠습니다.
+
+[source,bash]
+----
+echo "Hello from a Kubernetes Job"
+----
+
+명령이 정상적으로 실행되고 종료되면 Pod는 완료 상태가 되고 Job도 작업이 성공했다고 판단합니다.
+
+Job은 Pod의 실행 결과를 추적하며, 작업이 실패한 경우 설정된 정책에 따라 다시 시도할 수도 있습니다.
+
+=== CronJob
+
+같은 작업을 정해진 시간마다 반복해서 실행해야 한다면 ``CronJob``을 사용할 수 있습니다.
+
+CronJob은 Linux의 ``cron``과 비슷한 방식으로 **Cron 표현식에 따라 Job을 생성**합니다.
+
+예를 들어 매일 새벽 2시에 데이터베이스 백업을 수행하거나, 매시간 보고서를 생성하는 작업을 CronJob으로 구성할 수 있습니다.
+
+CronJob과 Job, Pod의 관계는 다음과 같습니다.
+
+[source,text]
+----
+CronJob
+   │
+   │ 정해진 시간이 되면
+   ▼
+  Job
+   │
+   │ 작업 실행을 위해
+   ▼
+  Pod
+   │
+   ▼
+작업 실행 후 종료
+----
+
+즉,
+
+* **Job**: 작업을 한 번 실행하고 완료 상태를 관리
+* **CronJob**: 정해진 일정에 따라 새로운 Job을 반복적으로 생성
+
+한다고 이해하면 됩니다.
+
+이번 실습에서는 먼저 Job을 직접 만들어 보고, 이어서 같은 작업을 CronJob으로 반복 실행하면서 ``CronJob → Job → Pod`` 관계를 확인합니다.
+
+
+== 실습: Job과 CronJob
+
+=== 사전 준비
+
+터미널 1에서 올바른 프로젝트에 있는지 확인합니다.
+
+:set-namespace: myspace
+include::partial$new-terminal.adoc[]
+
+**{watch-terminal}**에서는 Pod의 상태를 계속 확인합니다.
+
+[tabs]
+====
+터미널 2::
++
+--
+올바른 프로젝트에 있는지 확인합니다.
+
+(터미널 탭을 새로 열 때마다 wksp-{user} 프로젝트로 돌아가니 아래 명령어를 꼭 실행해주세요.)
+
+:set-namespace: myspace
+include::partial$new-terminal.adoc[]
+
+include::partial$watching-pods.adoc[]
+--
+====
+
+
+== 실습: Job
+
+=== Job 생성하기
+
+먼저 간단한 메시지를 출력하고 종료하는 Job을 만들어 보겠습니다.
+
+터미널 1에서 다음 명령을 실행합니다.
+
+[#create-hello-job]
+[.console-input]
+[source,bash]
+----
+cat <<EOF | oc apply -f -
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: hello-job
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      containers:
+      - name: hello
+        image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Hello from a Kubernetes Job"
+          date
+      restartPolicy: Never
+EOF
+----
+
+Job의 중요한 부분을 살펴보겠습니다.
+
+[source,yaml]
+----
+apiVersion: batch/v1
+kind: Job
+----
+
+일반적인 애플리케이션을 실행할 때 사용했던 ``Deployment``가 아니라 ``Job`` 리소스를 생성합니다.
+
+그리고 ``template``에는 Job이 실행할 Pod의 정의가 들어 있습니다.
+
+[source,yaml]
+----
+template:
+  spec:
+    containers:
+    ...
+    restartPolicy: Never
+----
+
+즉, 관계는 다음과 같습니다.
+
+[source,text]
+----
+Job: hello-job
+       │
+       └── Pod 생성
+             │
+             └── Container 실행
+                    │
+                    └── 명령 실행 후 종료
+----
+
+
+=== Job 실행 과정 확인하기
+
+터미널 2를 보면 Job이 생성한 Pod의 상태가 변화하는 것을 확인할 수 있습니다.
+
+[source,text]
+----
+ContainerCreating
+        ↓
+Running
+        ↓
+Completed
+----
+
+예를 들면 다음과 같습니다.
+
+[.console-output]
+[source,bash]
+----
+NAME              READY   STATUS      RESTARTS   AGE
+hello-job-xxxxx   0/1     Completed   0          12s
+----
+
+``Completed``는 오류가 아니라 **Job의 작업이 정상적으로 완료되었다는 의미**입니다.
+
+Job 자체의 상태도 확인합니다.
+
+[#get-hello-job]
+[.console-input]
+[source,bash]
+----
+oc get job hello-job
+----
+
+[.console-output]
+[source,text]
+----
+NAME        STATUS     COMPLETIONS   DURATION   AGE
+hello-job   Complete   1/1           3s         15s
+----
+
+``COMPLETIONS``가 ``1/1``이면 Job이 요구하는 작업이 한 번 성공적으로 완료되었다는 의미입니다.
+
+필요한 경우 다음 명령으로 Job이 완료될 때까지 기다릴 수도 있습니다.
+
+[#wait-hello-job]
+[.console-input]
+[source,bash]
+----
+oc wait --for=condition=complete job/hello-job --timeout=120s
+----
+
+
+=== Job의 로그 확인하기
+
+실제 작업은 Job 자체가 아니라 Job이 생성한 Pod 안의 컨테이너에서 실행됩니다.
+
+하지만 ``oc logs``에서는 Job을 직접 지정하여 로그를 확인할 수도 있습니다.
+
+[#logs-hello-job]
+[.console-input]
+[source,bash]
+----
+oc logs job/hello-job
+----
+
+[.console-output]
+[source,text]
+----
+Hello from a Kubernetes Job
+Fri Oct  2 07:15:21 KST 2026
+----
+
+NOTE: ``date`` 명령으로 표시되는 실제 시간과 Time Zone은 컨테이너 환경에 따라 위 예시와 다를 수 있습니다.
+
+Job이 생성한 Pod도 확인해 보겠습니다.
+
+[#get-job-pods]
+[.console-input]
+[source,bash]
+----
+oc get pods -l batch.kubernetes.io/job-name=hello-job
+----
+
+다음과 비슷한 결과가 나타납니다.
+
+[.console-output]
+[source,text]
+----
+NAME              READY   STATUS      RESTARTS   AGE
+hello-job-xxxxx   0/1     Completed   0          1m
+----
+
+Kubernetes는 Job이 생성한 Pod에 ``batch.kubernetes.io/job-name``이라는 레이블을 자동으로 추가합니다.
+
+Pod의 레이블을 직접 확인할 수도 있습니다.
+
+[#show-job-labels]
+[.console-input]
+[source,bash]
+----
+oc get pods -l batch.kubernetes.io/job-name=hello-job --show-labels
+----
+
+이를 통해 **Pod가 어떤 Job에 속해 있는지** 확인할 수 있습니다.
+
+
+=== Job과 Pod의 차이
+
+여기에서 Job과 Pod의 역할을 구분해 두는 것이 중요합니다.
+
+[source,text]
+----
+Job
+ │
+ │ "이 작업을 성공적으로 완료해야 한다"
+ │
+ ▼
+Pod
+ │
+ │ 실제 Container 실행
+ ▼
+프로그램
+----
+
+Pod가 실제 프로그램을 실행한다면 Job은 **그 작업이 성공적으로 완료되었는지 관리하는 상위 리소스**입니다.
+
+Job에는 다음과 같은 설정도 사용할 수 있습니다.
+
+* ``completions``: 몇 번의 성공적인 완료가 필요한지 지정
+* ``parallelism``: 동시에 몇 개의 Pod를 실행할지 지정
+* ``backoffLimit``: 실패했을 때 다시 시도할 횟수 지정
+* ``activeDeadlineSeconds``: Job이 실행될 수 있는 최대 시간 지정
+* ``ttlSecondsAfterFinished``: 완료된 Job을 일정 시간이 지난 뒤 자동으로 삭제
+
+이번 실습에서는 가장 기본적인 **한 번 실행하고 성공적으로 종료되는 Job**을 사용합니다.
+
+
+== 실습: CronJob
+
+=== Cron 표현식 이해하기
+
+이번에는 같은 종류의 작업을 주기적으로 실행해 보겠습니다.
+
+CronJob의 실행 주기는 ``schedule`` 필드에 Cron 표현식으로 지정합니다.
+
+Cron 표현식은 다음과 같은 다섯 개의 필드로 구성됩니다.
+
+[source,text]
+----
+┌───────────── 분       (0 - 59)
+│ ┌─────────── 시       (0 - 23)
+│ │ ┌───────── 일       (1 - 31)
+│ │ │ ┌─────── 월       (1 - 12)
+│ │ │ │ ┌───── 요일     (0 - 6)
+│ │ │ │ │
+* * * * *
+----
+
+예를 들어,
+
+[source,text]
+----
+* * * * *
+----
+
+는 **매분 실행**한다는 의미입니다.
+
+다른 예를 보면 다음과 같습니다.
+
+[cols="2,3",options="header"]
+|===
+|Cron 표현식
+|의미
+
+|``* * * * *``
+|매분
+
+|``0 * * * *``
+|매시간 정각
+
+|``0 2 * * *``
+|매일 오전 2시
+
+|``0 9 * * 1``
+|매주 월요일 오전 9시
+|===
+
+이번 실습에서는 결과를 빠르게 확인하기 위해 ``* * * * *``를 사용합니다.
+
+
+=== CronJob 생성하기
+
+터미널 1에서 다음 CronJob을 생성합니다.
+
+[#create-hello-cronjob]
+[.console-input]
+[source,bash]
+----
+cat <<EOF | oc apply -f -
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hello-cronjob
+spec:
+  schedule: "* * * * *"
+  timeZone: "Asia/Seoul"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+
+  jobTemplate:
+    metadata:
+      labels:
+        app: hello-cronjob
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: hello-cronjob
+        spec:
+          containers:
+          - name: hello
+            image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+            imagePullPolicy: IfNotPresent
+            command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Hello from a Kubernetes CronJob"
+              date
+          restartPolicy: Never
+EOF
+----
+
+중요한 부분을 하나씩 살펴보겠습니다.
+
+먼저 실행 주기입니다.
+
+[source,yaml]
+----
+schedule: "* * * * *"
+----
+
+매분 새로운 Job을 생성합니다.
+
+그리고 다음 설정은 Cron 표현식을 어느 Time Zone을 기준으로 해석할지 지정합니다.
+
+[source,yaml]
+----
+timeZone: "Asia/Seoul"
+----
+
+여기서는 한국 표준시를 사용하도록 설정했습니다.
+
+[NOTE]
+====
+이번 실습의 ``* * * * *``는 매분 실행하는 설정이므로 Time Zone이 달라도 실습 결과에는 큰 차이가 없습니다.
+
+하지만 "매일 오전 2시"와 같이 특정 시간을 지정하는 실제 CronJob에서는 Time Zone을 명확히 지정하는 것이 중요합니다.
+====
+
+다음 설정도 확인합니다.
+
+[source,yaml]
+----
+concurrencyPolicy: Forbid
+----
+
+이 CronJob에서 이전 Job이 아직 실행되고 있을 때 다음 실행 시간이 도착하면 새로운 Job을 동시에 실행하지 않도록 합니다.
+
+이번 실습의 작업은 몇 초 안에 끝나기 때문에 실제로 겹칠 가능성은 거의 없지만, 백업이나 배치 처리처럼 오래 실행되는 작업에서는 중요한 설정입니다.
+
+마지막으로 다음 두 설정은 완료된 Job 기록을 몇 개까지 유지할지 결정합니다.
+
+[source,yaml]
+----
+successfulJobsHistoryLimit: 3
+failedJobsHistoryLimit: 1
+----
+
+즉,
+
+* 성공한 Job은 최근 3개까지 유지
+* 실패한 Job은 최근 1개까지 유지
+
+하도록 설정했습니다.
+
+
+=== CronJob의 실행 확인하기
+
+생성한 CronJob을 확인합니다.
+
+[#get-hello-cronjob]
+[.console-input]
+[source,bash]
+----
+oc get cronjob hello-cronjob
+----
+
+처음에는 아직 실행 시간이 오지 않았다면 다음과 같이 ``LAST SCHEDULE``이 비어 있을 수 있습니다.
+
+[.console-output]
+[source,text]
+----
+NAME            SCHEDULE    TIMEZONE     SUSPEND   ACTIVE   LAST SCHEDULE
+hello-cronjob   * * * * *   Asia/Seoul   False     0        <none>
+----
+
+CronJob이 새로운 Job을 생성하는 과정을 확인하기 위해 터미널 1에서 다음 명령을 실행합니다.
+
+[#watch-cronjob-jobs]
+[.console-input]
+[source,bash]
+----
+oc get jobs -l app=hello-cronjob -w
+----
+
+다음 실행 시간이 되면 새로운 Job이 나타납니다.
+
+[.console-output]
+[source,text]
+----
+NAME                       STATUS     COMPLETIONS   DURATION   AGE
+hello-cronjob-xxxxxxxx     Complete   1/1           3s         5s
+----
+
+새로운 Job을 확인했다면 kbd:[Ctrl+c]를 눌러 watch를 종료합니다.
+
+동시에 터미널 2에서는 해당 Job이 만든 Pod도 확인할 수 있습니다.
+
+[.console-output]
+[source,text]
+----
+NAME                             READY   STATUS      RESTARTS   AGE
+hello-cronjob-xxxxxxxx-yyyyy     0/1     Completed   0          8s
+----
+
+즉, 실제로 다음과 같은 과정이 일어난 것입니다.
+
+[source,text]
+----
+CronJob: hello-cronjob
+        │
+        │ schedule 도착
+        ▼
+Job: hello-cronjob-xxxxxxxx
+        │
+        │ Pod 생성
+        ▼
+Pod: hello-cronjob-xxxxxxxx-yyyyy
+        │
+        ▼
+Container 실행
+        │
+        ▼
+Completed
+----
+
+
+=== 여러 번 실행되는 과정 확인하기
+
+1~2분 정도 지나면 CronJob에 의해 새로운 Job이 추가로 만들어집니다.
+
+현재 Job 목록을 확인합니다.
+
+[#list-cronjob-jobs]
+[.console-input]
+[source,bash]
+----
+oc get jobs -l app=hello-cronjob
+----
+
+예를 들면 다음과 같습니다.
+
+[.console-output]
+[source,text]
+----
+NAME                       STATUS     COMPLETIONS   DURATION   AGE
+hello-cronjob-xxxxxxxx     Complete   1/1           3s         2m
+hello-cronjob-yyyyyyyy     Complete   1/1           3s         1m
+----
+
+각각은 서로 다른 **독립적인 Job**입니다.
+
+CronJob이 하나의 Job을 계속 재시작하는 것이 아니라, **실행 시간이 올 때마다 새로운 Job 객체를 생성한다는 점**이 중요합니다.
+
+[source,text]
+----
+CronJob
+  │
+  ├── Job #1
+  │      └── Pod #1
+  │
+  ├── Job #2
+  │      └── Pod #2
+  │
+  └── Job #3
+         └── Pod #3
+----
+
+
+=== CronJob으로 생성된 Pod의 로그 확인하기
+
+이번에는 CronJob으로 생성된 Pod들의 로그를 확인합니다.
+
+Pod Template에 다음 레이블을 직접 추가했었습니다.
+
+[source,yaml]
+----
+metadata:
+  labels:
+    app: hello-cronjob
+----
+
+따라서 이 레이블을 이용해 Pod를 조회할 수 있습니다.
+
+[#get-cronjob-pods]
+[.console-input]
+[source,bash]
+----
+oc get pods -l app=hello-cronjob
+----
+
+모든 해당 Pod의 로그도 확인할 수 있습니다.
+
+[#logs-cronjob-pods]
+[.console-input]
+[source,bash]
+----
+oc logs -l app=hello-cronjob --tail=-1
+----
+
+여러 번 실행되었다면 다음과 비슷한 메시지가 여러 번 나타납니다.
+
+[.console-output]
+[source,text]
+----
+Hello from a Kubernetes CronJob
+Fri Oct  2 07:21:00 KST 2026
+
+Hello from a Kubernetes CronJob
+Fri Oct  2 07:22:00 KST 2026
+----
+
+실제 출력되는 시간은 실습 환경과 실행 시점에 따라 다릅니다.
+
+
+=== 완료된 Job은 얼마나 남아 있을까?
+
+CronJob 정의에서는 다음과 같이 설정했습니다.
+
+[source,yaml]
+----
+successfulJobsHistoryLimit: 3
+failedJobsHistoryLimit: 1
+----
+
+따라서 CronJob Controller는 완료된 Job을 무제한으로 계속 남겨두지 않습니다.
+
+성공한 Job은 설정한 개수만큼만 유지하고 오래된 Job부터 정리합니다.
+
+[source,text]
+----
+성공 Job #1
+성공 Job #2
+성공 Job #3
+        │
+새로운 성공 Job #4 생성
+        │
+        ▼
+오래된 Job #1 정리
+
+남는 Job:
+#2
+#3
+#4
+----
+
+여기서 중요한 점은 이 설정이 **시간을 기준으로 삭제하는 설정이 아니라 보관할 Job의 개수를 지정하는 설정**이라는 것입니다.
+
+Job 자체를 완료 후 일정 시간이 지나면 자동으로 삭제하고 싶은 경우에는 Job의 ``ttlSecondsAfterFinished``라는 별도의 기능을 사용할 수 있습니다.
+
+
+=== CronJob 일시 정지하기
+
+CronJob을 그대로 두면 계속해서 새로운 Job이 생성됩니다.
+
+실습을 마무리하기 전에 새로운 실행을 잠시 중지해 보겠습니다.
+
+[#suspend-cronjob]
+[.console-input]
+[source,bash]
+----
+oc patch cronjob hello-cronjob \
+  --type=merge \
+  -p '{"spec":{"suspend":true}}'
+----
+
+CronJob을 확인합니다.
+
+[#check-suspended-cronjob]
+[.console-input]
+[source,bash]
+----
+oc get cronjob hello-cronjob
+----
+
+``SUSPEND`` 값이 ``True``로 변경된 것을 확인할 수 있습니다.
+
+[.console-output]
+[source,text]
+----
+NAME            SCHEDULE    TIMEZONE     SUSPEND   ACTIVE
+hello-cronjob   * * * * *   Asia/Seoul   True      0
+----
+
+``suspend: true``는 앞으로의 스케줄 실행을 중지합니다.
+
+이미 생성되어 실행 중인 Job까지 강제로 중단시키는 것은 아닙
